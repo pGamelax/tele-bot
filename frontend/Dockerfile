@@ -4,8 +4,8 @@ FROM node:20-alpine AS base
 # Instalar dependências
 FROM base AS deps
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+COPY frontend/package.json ./
+RUN npm install
 
 # Build
 FROM base AS build
