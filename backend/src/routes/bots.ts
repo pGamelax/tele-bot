@@ -44,6 +44,18 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
       const botIds = userBots.map((bot) => bot.id);
 
       if (botIds.length === 0) {
+        // Retornar array vazio para revenueByDay (últimos 7 dias)
+        const revenueByDay: { date: string; revenue: number }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          date.setHours(0, 0, 0, 0);
+          revenueByDay.push({
+            date: date.toISOString().split('T')[0],
+            revenue: 0,
+          });
+        }
+
         return {
           stats: {
             totalBots: 0,
@@ -53,6 +65,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
             totalPixGenerated: 0,
             totalRevenue: 0,
             totalRevenueCents: 0,
+            todayRevenue: 0,
+            conversionRate: 0,
+            revenueGrowth: 0,
+            revenueByDay,
+            accountHealth: "Baixo",
+            accountHealthPercentage: 0,
           },
         };
       }

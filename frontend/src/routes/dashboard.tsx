@@ -128,7 +128,9 @@ function DashboardPage() {
   };
 
   // Calcular máximo para o gráfico
-  const maxRevenue = Math.max(...stats.revenueByDay.map(d => d.revenue), 1);
+  const maxRevenue = stats.revenueByDay && stats.revenueByDay.length > 0
+    ? Math.max(...stats.revenueByDay.map(d => d.revenue), 1)
+    : 1;
 
   return (
     <div className="space-y-6">
@@ -303,7 +305,7 @@ function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {stats.revenueByDay.length > 0 ? (
+          {stats.revenueByDay && stats.revenueByDay.length > 0 ? (
             <div className="h-48 sm:h-64 flex flex-col overflow-x-auto">
               <div className="flex-1 flex items-end gap-1 sm:gap-2 mb-4 min-w-max">
                 {stats.revenueByDay.map((day, index) => (
