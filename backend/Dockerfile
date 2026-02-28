@@ -4,15 +4,19 @@ WORKDIR /app
 
 # Instalar dependências
 FROM base AS deps
-COPY package.json bun.lockb* ./
-COPY backend/package.json ./backend/
+WORKDIR /app/backend
+COPY backend/package.json ./
+# Copiar lockfile se existir
+COPY backend/bun.lockb* ./
 RUN bun install --frozen-lockfile
 
 # Build
 FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY backend ./backend
 WORKDIR /app/backend
+COPY --from=deps /app/backend/node_modules ./node_modules
+COPY backend/package.json ./
+COPY backend/prisma ./prisma
+COPY backend/src ./src
 RUN bun run build
 
 # Produção
@@ -20,7 +24,7 @@ FROM base AS production
 WORKDIR /app/backend
 
 # Copiar apenas arquivos necessários
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/backend/node_modules ./node_modules
 COPY --from=build /app/backend/build ./build
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/src ./src
