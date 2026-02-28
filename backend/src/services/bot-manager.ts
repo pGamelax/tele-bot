@@ -1,6 +1,7 @@
 import { Bot, Context, InputFile } from "grammy";
 import { PrismaClient } from "@prisma/client";
 import { SyncPayService } from "./syncpay";
+import { TrackingStorage } from "./tracking-storage";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -259,31 +260,43 @@ export class BotManager {
 
     // Função para iniciar reenvios automáticos
     const startResendSchedule = async (chatId: string) => {
+      console.log(`[BotManager] Iniciando agendamento de reenvio para bot ${botId}, chat ${chatId}`);
+      
       // Limpar timers existentes para este chat
       this.stopResendSchedule(botId, chatId);
 
       const firstDelay = (config.resendFirstDelay || 20) * 60 * 1000; // Converter minutos para ms
       const interval = (config.resendInterval || 10) * 60 * 1000; // Converter minutos para ms
 
+      console.log(`[BotManager] Configuração de reenvio - Primeiro delay: ${config.resendFirstDelay || 20} minutos (${firstDelay}ms), Intervalo: ${config.resendInterval || 10} minutos (${interval}ms)`);
+
       // Primeira mensagem após o delay configurado
       const firstTimer = setTimeout(async () => {
         try {
+          console.log(`[BotManager] Executando primeiro reenvio para bot ${botId}, chat ${chatId}`);
+          
           // Verificar se o usuário já comprou
           const hasPurchased = await hasUserPurchased(chatId);
           if (hasPurchased) {
+            console.log(`[BotManager] Usuário ${chatId} já comprou, parando reenvios`);
             this.stopResendSchedule(botId, chatId);
             return;
           }
 
           // Enviar mensagem de reenvio
+          console.log(`[BotManager] Enviando primeira mensagem de reenvio para chat ${chatId}`);
           await sendResendMessage(chatId);
+          console.log(`[BotManager] Primeira mensagem de reenvio enviada com sucesso para chat ${chatId}`);
 
           // Iniciar reenvios no intervalo configurado
           const recurringTimer = setInterval(async () => {
             try {
+              console.log(`[BotManager] Executando reenvio recorrente para bot ${botId}, chat ${chatId}`);
+              
               // Verificar se o usuário já comprou
               const hasPurchased = await hasUserPurchased(chatId);
               if (hasPurchased) {
+                console.log(`[BotManager] Usuário ${chatId} já comprou, parando reenvios recorrentes`);
                 this.stopResendSchedule(botId, chatId);
                 return;
               }
@@ -291,14 +304,18 @@ export class BotManager {
               // Verificar se o bot ainda existe
               const bot = this.bots.get(botId);
               if (!bot) {
+                console.warn(`[BotManager] Bot ${botId} não encontrado, parando reenvios`);
                 clearInterval(recurringTimer);
                 return;
               }
 
               // Enviar mensagem de reenvio
+              console.log(`[BotManager] Enviando mensagem de reenvio recorrente para chat ${chatId}`);
               await sendResendMessage(chatId);
+              console.log(`[BotManager] Mensagem de reenvio recorrente enviada com sucesso para chat ${chatId}`);
             } catch (error) {
-              console.error(`Erro ao reenviar mensagem para chat ${chatId}:`, error);
+              console.error(`[BotManager] Erro ao reenviar mensagem para chat ${chatId}:`, error);
+              console.error(`[BotManager] Stack trace:`, (error as Error).stack);
             }
           }, interval);
 
@@ -307,8 +324,10 @@ export class BotManager {
             this.resendTimers.set(botId, new Map());
           }
           this.resendTimers.get(botId)!.set(chatId, recurringTimer);
+          console.log(`[BotManager] Timer de reenvio recorrente armazenado para bot ${botId}, chat ${chatId}`);
         } catch (error) {
-          console.error(`Erro no primeiro reenvio para chat ${chatId}:`, error);
+          console.error(`[BotManager] Erro no primeiro reenvio para chat ${chatId}:`, error);
+          console.error(`[BotManager] Stack trace:`, (error as Error).stack);
         }
       }, firstDelay);
 
@@ -317,10 +336,11 @@ export class BotManager {
         this.resendTimers.set(botId, new Map());
       }
       this.resendTimers.get(botId)!.set(`${chatId}_first`, firstTimer);
+      console.log(`[BotManager] Timer da primeira mensagem armazenado para bot ${botId}, chat ${chatId} (será executado em ${firstDelay}ms)`);
     };
 
     // Função para extrair parâmetros de rastreamento do comando /start
-    const extractTrackingParams = (startParam?: string) => {
+    const extractTrackingParams = async (startParam?: string) => {
       const params: {
         utmSource?: string;
         utmMedium?: string;
@@ -334,7 +354,16 @@ export class BotManager {
 
       if (!startParam) return params;
 
-      // Tentar parsear como query string (ex: utm_source=facebook&utm_campaign=ads)
+      // Primeiro, tentar recuperar do TrackingStorage (token gerado pelo link intermediário)
+      const trackingStorage = TrackingStorage.getInstance();
+      const storedParams = trackingStorage.retrieve(startParam);
+      
+      if (storedParams) {
+        console.log(`[BotManager] Parâmetros recuperados do TrackingStorage para token: ${startParam}`);
+        return storedParams;
+      }
+
+      // Se não encontrou no storage, tentar parsear como query string (comportamento antigo)
       if (startParam.includes('=')) {
         // Parsear manualmente a query string
         const pairs = startParam.split('&');
@@ -386,7 +415,19 @@ export class BotManager {
 
         // Extrair parâmetros de rastreamento do comando /start
         const startParam = ctx.message?.text?.split(' ')[1]; // Parâmetro após /start
-        const trackingParams = extractTrackingParams(startParam);
+        const trackingParams = await extractTrackingParams(startParam);
+        
+        // Verificar se há parâmetros de tracking (vindo de anúncio)
+        const hasTrackingParams = !!(
+          trackingParams.utmSource ||
+          trackingParams.utmMedium ||
+          trackingParams.utmCampaign ||
+          trackingParams.utmContent ||
+          trackingParams.utmTerm ||
+          trackingParams.fbclid ||
+          trackingParams.gclid ||
+          trackingParams.ref
+        );
 
         // Criar ou atualizar lead
         try {
@@ -399,7 +440,7 @@ export class BotManager {
           });
 
           if (existingLead) {
-            // Atualizar lead existente (só atualiza tracking se não existir)
+            // Atualizar lead existente
             const updateData: any = {
               telegramUsername: user?.username || undefined,
               firstName: user?.first_name || undefined,
@@ -407,30 +448,39 @@ export class BotManager {
               isNew: true, // Marcar como novo novamente
             };
 
-            // Só atualiza tracking params se não existirem (preserva dados originais)
-            if (!existingLead.utmSource && trackingParams.utmSource) {
-              updateData.utmSource = trackingParams.utmSource;
-            }
-            if (!existingLead.utmMedium && trackingParams.utmMedium) {
-              updateData.utmMedium = trackingParams.utmMedium;
-            }
-            if (!existingLead.utmCampaign && trackingParams.utmCampaign) {
-              updateData.utmCampaign = trackingParams.utmCampaign;
-            }
-            if (!existingLead.utmContent && trackingParams.utmContent) {
-              updateData.utmContent = trackingParams.utmContent;
-            }
-            if (!existingLead.utmTerm && trackingParams.utmTerm) {
-              updateData.utmTerm = trackingParams.utmTerm;
-            }
-            if (!existingLead.fbclid && trackingParams.fbclid) {
-              updateData.fbclid = trackingParams.fbclid;
-            }
-            if (!existingLead.gclid && trackingParams.gclid) {
-              updateData.gclid = trackingParams.gclid;
-            }
-            if (!existingLead.ref && trackingParams.ref) {
-              updateData.ref = trackingParams.ref;
+            // Se veio de um anúncio (tem parâmetros de tracking), atualizar sempre
+            // Se veio direto do bot (sem parâmetros), preservar os dados antigos
+            if (hasTrackingParams) {
+              // Atualizar todos os parâmetros de tracking (mesmo que já existam)
+              // Isso permite atualizar quando o usuário vem de um anúncio novo
+              if (trackingParams.utmSource !== undefined) {
+                updateData.utmSource = trackingParams.utmSource;
+              }
+              if (trackingParams.utmMedium !== undefined) {
+                updateData.utmMedium = trackingParams.utmMedium;
+              }
+              if (trackingParams.utmCampaign !== undefined) {
+                updateData.utmCampaign = trackingParams.utmCampaign;
+              }
+              if (trackingParams.utmContent !== undefined) {
+                updateData.utmContent = trackingParams.utmContent;
+              }
+              if (trackingParams.utmTerm !== undefined) {
+                updateData.utmTerm = trackingParams.utmTerm;
+              }
+              if (trackingParams.fbclid !== undefined) {
+                updateData.fbclid = trackingParams.fbclid;
+              }
+              if (trackingParams.gclid !== undefined) {
+                updateData.gclid = trackingParams.gclid;
+              }
+              if (trackingParams.ref !== undefined) {
+                updateData.ref = trackingParams.ref;
+              }
+              console.log(`[BotManager] Atualizando parâmetros de tracking do lead ${existingLead.id} (vindo de anúncio)`);
+            } else {
+              // Sem parâmetros de tracking - preservar dados antigos
+              console.log(`[BotManager] Preservando parâmetros de tracking antigos do lead ${existingLead.id} (sem parâmetros no /start)`);
             }
 
             await prisma.lead.update({
@@ -438,7 +488,7 @@ export class BotManager {
               data: updateData,
             });
           } else {
-            // Criar novo lead com dados de rastreamento
+            // Criar novo lead com dados de rastreamento (se houver)
             await prisma.lead.create({
               data: {
                 botId,
@@ -457,6 +507,7 @@ export class BotManager {
                 ref: trackingParams.ref,
               },
             });
+            console.log(`[BotManager] Novo lead criado com parâmetros de tracking:`, hasTrackingParams ? 'Sim' : 'Não');
           }
         } catch (leadError) {
           console.error(`Erro ao criar/atualizar lead:`, leadError);
@@ -582,14 +633,19 @@ export class BotManager {
 
   // Parar reenvios para um chat específico
   stopResendSchedule(botId: string, chatId: string) {
+    console.log(`[BotManager] Parando reenvios para bot ${botId}, chat ${chatId}`);
     const botTimers = this.resendTimers.get(botId);
-    if (!botTimers) return;
+    if (!botTimers) {
+      console.log(`[BotManager] Nenhum timer encontrado para bot ${botId}`);
+      return;
+    }
 
     // Limpar timer da primeira mensagem
     const firstTimer = botTimers.get(`${chatId}_first`);
     if (firstTimer) {
       clearTimeout(firstTimer);
       botTimers.delete(`${chatId}_first`);
+      console.log(`[BotManager] Timer da primeira mensagem removido para bot ${botId}, chat ${chatId}`);
     }
 
     // Limpar timer de reenvios recorrentes
@@ -597,11 +653,13 @@ export class BotManager {
     if (recurringTimer) {
       clearInterval(recurringTimer);
       botTimers.delete(chatId);
+      console.log(`[BotManager] Timer de reenvio recorrente removido para bot ${botId}, chat ${chatId}`);
     }
 
     // Se não houver mais timers para este bot, remover o Map
     if (botTimers.size === 0) {
       this.resendTimers.delete(botId);
+      console.log(`[BotManager] Todos os timers removidos para bot ${botId}`);
     }
   }
 

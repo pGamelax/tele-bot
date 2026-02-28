@@ -10,6 +10,7 @@ import { paymentRoutes } from "./routes/payments";
 import { uploadRoutes } from "./routes/upload";
 import { leadRoutes } from "./routes/leads";
 import { webhookRoutes } from "./routes/webhook";
+import { trackingRoutes } from "./routes/tracking";
 import { BotManager } from "./services/bot-manager";
 
 const prisma = new PrismaClient();
@@ -55,6 +56,11 @@ const app = new Elysia({
     prefix: "/uploads" 
   }))
   .decorate("db", prisma)
+  // Bloquear rota de registro (sign-up) - código privado
+  .post("/api/auth/sign-up/email", ({ set }) => {
+    set.status = 403;
+    return { error: "Registro desabilitado. Este é um sistema privado." };
+  })
   .mount(auth.handler)
   .derive(async ({ request }) => {
     return await userMiddleware(request);
@@ -64,6 +70,7 @@ const app = new Elysia({
   .use(uploadRoutes)
   .use(leadRoutes)
   .use(webhookRoutes)
+  .use(trackingRoutes)
   .get("/", () => ({ message: "Tele Bot API" }))
   .listen(process.env.PORT || 3000);
 

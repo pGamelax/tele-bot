@@ -175,11 +175,22 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
 
       // Se o pagamento foi confirmado (paid) - processar mesmo se já estava como paid
       if (isPaid) {
-        // Atualizar lead para marcar como convertido
+        // Buscar lead com todos os campos de tracking
         const lead = await prisma.lead.findFirst({
           where: {
             botId: payment.botId,
             telegramChatId: payment.telegramChatId,
+          },
+          select: {
+            id: true,
+            fbclid: true,
+            utmSource: true,
+            utmMedium: true,
+            utmCampaign: true,
+            utmContent: true,
+            utmTerm: true,
+            gclid: true,
+            ref: true,
           },
         });
 
@@ -192,6 +203,14 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
             },
           });
           console.log(`[Webhook SyncPay] Lead ${lead.id} marcado como convertido`);
+          console.log(`[Webhook SyncPay] Parâmetros de tracking do lead:`, {
+            fbclid: lead.fbclid,
+            utmSource: lead.utmSource,
+            utmCampaign: lead.utmCampaign,
+            utmMedium: lead.utmMedium,
+          });
+        } else {
+          console.warn(`[Webhook SyncPay] Lead não encontrado para bot ${payment.botId} e chat ${payment.telegramChatId}`);
         }
 
         // Parar reenvios para este chat
@@ -214,6 +233,7 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               ? Math.floor(payment.paidAt.getTime() / 1000)
               : Math.floor(Date.now() / 1000);
 
+            // Enviar evento com fbclid do lead (parâmetros são salvos permanentemente no lead)
             await facebookConversions.sendPurchase(
               bot.facebookPixelId,
               bot.facebookAccessToken,
@@ -221,7 +241,12 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               lead?.fbclid || undefined,
               eventTime
             );
-            console.log(`[Webhook SyncPay] Evento Purchase enviado para Facebook Pixel ${bot.facebookPixelId}`);
+            console.log(`[Webhook SyncPay] Evento Purchase enviado para Facebook Pixel ${bot.facebookPixelId}`, {
+              amount: amountInReais,
+              fbclid: lead?.fbclid || "não disponível",
+              utmCampaign: lead?.utmCampaign || "não disponível",
+              eventTime,
+            });
           } else {
             if (!bot?.facebookPixelId) {
               console.log(`[Webhook SyncPay] Facebook Pixel ID não configurado para bot ${payment.botId}`);

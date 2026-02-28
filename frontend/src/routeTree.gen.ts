@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BotsRouteImport } from './routes/bots'
@@ -18,11 +17,6 @@ import { Route as BotsNewRouteImport } from './routes/bots/new'
 import { Route as BotsIdRouteImport } from './routes/bots/$id'
 import { Route as LeadsRouteImport } from './routes/leads'
 
-const SignUpRoute = SignUpRouteImport.update({
-  id: '/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
@@ -64,7 +58,6 @@ export interface FileRoutesByFullPath {
   '/bots': typeof BotsRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
   '/bots/$id': typeof BotsIdRoute
   '/bots/new': typeof BotsNewRoute
   '/leads': typeof LeadsRoute
@@ -74,7 +67,6 @@ export interface FileRoutesByTo {
   '/bots': typeof BotsRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
   '/bots/$id': typeof BotsIdRoute
   '/bots/new': typeof BotsNewRoute
   '/leads': typeof LeadsRoute
@@ -85,7 +77,6 @@ export interface FileRoutesById {
   '/bots': typeof BotsRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
   '/bots/$id': typeof BotsIdRoute
   '/bots/new': typeof BotsNewRoute
   '/leads': typeof LeadsRoute
@@ -97,7 +88,6 @@ export interface FileRouteTypes {
     | '/bots'
     | '/dashboard'
     | '/sign-in'
-    | '/sign-up'
     | '/bots/$id'
     | '/bots/new'
     | '/leads'
@@ -107,7 +97,6 @@ export interface FileRouteTypes {
     | '/bots'
     | '/dashboard'
     | '/sign-in'
-    | '/sign-up'
     | '/bots/$id'
     | '/bots/new'
     | '/leads'
@@ -117,7 +106,6 @@ export interface FileRouteTypes {
     | '/bots'
     | '/dashboard'
     | '/sign-in'
-    | '/sign-up'
     | '/bots/$id'
     | '/bots/new'
   fileRoutesById: FileRoutesById
@@ -125,13 +113,6 @@ export interface FileRouteTypes {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sign-up': {
-      id: '/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof SignUpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
@@ -201,7 +182,6 @@ export interface RootRouteChildren {
   BotsRoute: typeof BotsRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   SignInRoute: typeof SignInRoute
-  SignUpRoute: typeof SignUpRoute
   LeadsRoute: typeof LeadsRoute
 }
 
@@ -210,7 +190,6 @@ const rootRouteChildren: RootRouteChildren = {
   BotsRoute: BotsRouteWithChildren,
   DashboardRoute: DashboardRoute,
   SignInRoute: SignInRoute,
-  SignUpRoute: SignUpRoute,
   LeadsRoute: LeadsRoute,
 }
 export const routeTree = rootRouteImport

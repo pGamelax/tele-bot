@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Bot, Trash2, Edit, Power, PowerOff, Settings, DollarSign } from "lucide-react";
+import { Plus, Bot, Trash2, Edit, Power, PowerOff, Settings, DollarSign, Copy } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useApi } from "@/hooks/use-api";
@@ -185,7 +185,7 @@ function BotsPage() {
                       <CardTitle className="text-lg font-semibold text-gray-900 mb-1 truncate">
                         {bot.name}
                       </CardTitle>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {bot.isActive ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                             <div className="h-1.5 w-1.5 rounded-full bg-green-600 animate-pulse"></div>
@@ -197,6 +197,7 @@ function BotsPage() {
                             Inativo
                           </span>
                         )}
+                        <span className="text-xs text-gray-500 font-mono">ID: {bot.id.slice(0, 8)}...</span>
                       </div>
                     </div>
                     <div className="flex gap-1 ml-2">

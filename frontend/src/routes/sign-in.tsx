@@ -140,15 +140,8 @@ function SignInPage() {
               WELCOME!
             </h2>
             <p className="text-blue-100 text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
-              Enter your details and start journey with us
+              Enter your credentials to access the system
             </p>
-            <Button
-              type="button"
-              onClick={() => navigate({ to: "/sign-up" })}
-              className="bg-blue-500 hover:bg-blue-400 text-white px-8 py-3 rounded-lg font-semibold text-base uppercase"
-            >
-              SIGNUP
-            </Button>
           </div>
         </div>
       </div>

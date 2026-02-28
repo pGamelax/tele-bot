@@ -133,11 +133,12 @@ function DashboardPage() {
     : 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Início</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-600 mt-1">Visão geral do seu negócio</p>
         </div>
         <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
           <Calendar className="h-4 w-4" />
@@ -145,8 +146,8 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Stats Cards - Top Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -238,7 +239,7 @@ function DashboardPage() {
       </div>
 
       {/* Health and Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-900">Saúde da conta</CardTitle>
@@ -306,30 +307,37 @@ function DashboardPage() {
         </CardHeader>
         <CardContent>
           {stats.revenueByDay && stats.revenueByDay.length > 0 ? (
-            <div className="h-48 sm:h-64 flex flex-col overflow-x-auto">
-              <div className="flex-1 flex items-end gap-1 sm:gap-2 mb-4 min-w-max">
-                {stats.revenueByDay.map((day, index) => (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-1 sm:gap-2 min-w-[60px]">
-                    <div className="w-full flex items-end justify-center" style={{ height: '150px' }}>
-                      <div
-                        className="w-full bg-blue-600 rounded-t transition-all duration-500 hover:bg-blue-700 relative group"
-                        style={{ 
-                          height: `${(day.revenue / maxRevenue) * 100}%`,
-                          minHeight: day.revenue > 0 ? '4px' : '0'
-                        }}
-                      >
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
-                          {formatCurrency(day.revenue)}
+            <div className="space-y-4">
+              <div className="h-48 sm:h-64 flex items-end gap-2 sm:gap-3 pb-8">
+                {stats.revenueByDay.map((day, index) => {
+                  const barHeight = maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0;
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center gap-2 group relative">
+                      <div className="w-full flex items-end justify-center h-full">
+                        <div
+                          className="w-full bg-blue-600 rounded-t transition-all duration-500 hover:bg-blue-700 relative"
+                          style={{ 
+                            height: `${Math.max(barHeight, day.revenue > 0 ? 2 : 0)}%`,
+                            minHeight: day.revenue > 0 ? '4px' : '0'
+                          }}
+                        >
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
+                            {formatCurrency(day.revenue)}
+                          </div>
                         </div>
                       </div>
+                      <span className="text-xs text-gray-500 text-center">{formatDate(day.date)}</span>
                     </div>
-                    <span className="text-xs text-gray-500">{formatDate(day.date)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="text-center">
-                <p className="text-xs sm:text-sm text-gray-600">Total da semana: {formatCurrency(stats.revenueByDay.reduce((sum, d) => sum + d.revenue, 0))}</p>
-                <p className="text-xs text-gray-500">Média diária: {formatCurrency(stats.revenueByDay.reduce((sum, d) => sum + d.revenue, 0) / 7)}</p>
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-4 border-t border-gray-200">
+                <p className="text-sm font-medium text-gray-900">
+                  Total da semana: <span className="text-blue-600">{formatCurrency(stats.revenueByDay.reduce((sum, d) => sum + d.revenue, 0))}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Média diária: {formatCurrency(stats.revenueByDay.reduce((sum, d) => sum + d.revenue, 0) / 7)}
+                </p>
               </div>
             </div>
           ) : (
@@ -344,62 +352,75 @@ function DashboardPage() {
       </Card>
 
       {/* Conversion Rate and Rewards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-900">Taxa de conversão</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center h-40 sm:h-48">
-              <div className="relative w-24 h-24 sm:w-32 sm:h-32">
-                  <svg className="transform -rotate-90 w-24 h-24 sm:w-32 sm:h-32">
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r="42"
-                      stroke="currentColor"
-                      strokeWidth="6"
-                      fill="none"
-                      className="text-gray-200"
-                    />
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r="42"
-                      stroke="currentColor"
-                      strokeWidth="6"
-                      fill="none"
-                      strokeDasharray={`${(stats.conversionRate / 100) * 263.9} ${263.9}`}
-                      className="text-blue-600 transition-all duration-500"
-                    />
-                  </svg>
-                  <svg className="transform -rotate-90 w-32 h-32 hidden sm:block">
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="none"
-                      className="text-gray-200"
-                    />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="none"
-                      strokeDasharray={`${(stats.conversionRate / 100) * 351.86} ${351.86}`}
-                      className="text-blue-600 transition-all duration-500"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.conversionRate.toFixed(1)}%</p>
-                      <p className="text-xs sm:text-sm text-gray-500">PIX</p>
-                    </div>
+            <div className="flex items-center justify-center h-48 sm:h-56 lg:h-64">
+              {/* Mobile SVG */}
+              <div className="relative w-32 h-32 sm:hidden">
+                <svg className="transform -rotate-90 w-32 h-32" viewBox="0 0 64 64">
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="28"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    className="text-gray-200"
+                  />
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="28"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeDasharray={`${(stats.conversionRate / 100) * 175.93} ${175.93}`}
+                    strokeLinecap="round"
+                    className="text-blue-600 transition-all duration-500"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-gray-900">{stats.conversionRate.toFixed(1)}%</p>
+                    <p className="text-xs text-gray-500 mt-1">PIX</p>
                   </div>
+                </div>
+              </div>
+              
+              {/* Desktop SVG */}
+              <div className="relative w-40 h-40 sm:w-48 sm:h-48 lg:w-56 lg:h-56 hidden sm:block">
+                <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    stroke="currentColor"
+                    strokeWidth="6"
+                    fill="none"
+                    className="text-gray-200"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    stroke="currentColor"
+                    strokeWidth="6"
+                    fill="none"
+                    strokeDasharray={`${(stats.conversionRate / 100) * 282.74} ${282.74}`}
+                    strokeLinecap="round"
+                    className="text-blue-600 transition-all duration-500"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-3xl lg:text-4xl font-bold text-gray-900">{stats.conversionRate.toFixed(1)}%</p>
+                    <p className="text-sm lg:text-base text-gray-500 mt-1">PIX</p>
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>

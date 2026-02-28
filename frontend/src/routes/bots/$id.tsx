@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Copy, Check } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useApi } from "@/hooks/use-api";
@@ -47,9 +47,12 @@ function EditBotPage() {
   const [resendPaymentButtons, setResendPaymentButtons] = useState<PaymentButton[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { fetchWithAuth } = useApi();
+  
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
   useEffect(() => {
     loadBot();
@@ -218,6 +221,77 @@ function EditBotPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        {/* ID do Bot e Link de Tracking */}
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-900">Informações do Bot</CardTitle>
+            <CardDescription className="text-gray-600">ID do bot e link para usar em anúncios do Facebook</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-gray-900 font-medium">ID do Bot</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={id}
+                  readOnly
+                  className="bg-white border-gray-200 text-gray-900 font-mono text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(id);
+                    toast({
+                      title: "Copiado!",
+                      description: "ID do bot copiado para a área de transferência",
+                    });
+                  }}
+                  className="border-gray-300 hover:bg-gray-50"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-gray-900 font-medium">Link de Tracking para Facebook Ads</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={`${API_URL}/api/tracking/${id}/redirect?utm_source=facebook&utm_campaign=nome_da_campanha`}
+                  readOnly
+                  className="bg-white border-gray-200 text-gray-900 font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="default"
+                  size="icon"
+                  onClick={() => {
+                    const link = `${API_URL}/api/tracking/${id}/redirect?utm_source=facebook&utm_campaign=nome_da_campanha`;
+                    navigator.clipboard.writeText(link);
+                    setCopied(true);
+                    toast({
+                      title: "Link copiado!",
+                      description: "Cole este link no campo 'URL do site' do Facebook Ads. O Facebook adicionará automaticamente o fbclid.",
+                    });
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <div className="bg-blue-100 border border-blue-200 rounded-lg p-3 mt-2">
+                <p className="text-xs text-blue-900">
+                  <strong>Como usar:</strong> Cole este link no campo "URL do site" dos seus anúncios do Facebook Ads. 
+                  O Facebook adicionará automaticamente o parâmetro <code className="bg-blue-200 px-1 rounded font-mono">fbclid</code> quando o usuário clicar no anúncio.
+                  Você pode personalizar os parâmetros <code className="bg-blue-200 px-1 rounded font-mono">utm_campaign</code> e <code className="bg-blue-200 px-1 rounded font-mono">utm_source</code> conforme necessário.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Informações Básicas */}
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader>
@@ -233,7 +307,7 @@ function EditBotPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                 />
               </div>
 
@@ -245,7 +319,7 @@ function EditBotPage() {
                   value={telegramToken}
                   onChange={(e) => setTelegramToken(e.target.value)}
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400 font-mono text-xs"
                 />
               </div>
             </div>
@@ -259,7 +333,7 @@ function EditBotPage() {
                   value={syncpayApiKey}
                   onChange={(e) => setSyncpayApiKey(e.target.value)}
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400 font-mono text-xs"
                 />
               </div>
 
@@ -271,7 +345,7 @@ function EditBotPage() {
                   value={syncpayApiSecret}
                   onChange={(e) => setSyncpayApiSecret(e.target.value)}
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400 font-mono text-xs"
                 />
               </div>
             </div>
@@ -284,7 +358,7 @@ function EditBotPage() {
                 value={facebookPixelId}
                 onChange={(e) => setFacebookPixelId(e.target.value)}
                 placeholder="123456789012345"
-                className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
               />
               <p className="text-xs text-gray-500">
                 ID do seu Facebook Pixel para rastreamento de conversões. Encontre em: Facebook Events Manager
@@ -299,7 +373,7 @@ function EditBotPage() {
                 value={facebookAccessToken}
                 onChange={(e) => setFacebookAccessToken(e.target.value)}
                 placeholder="EAAxxxxxxxxxxxxx"
-                className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400 font-mono text-xs"
               />
               <p className="text-xs text-gray-500">
                 Access Token do Facebook para Conversions API. Necessário para enviar eventos de compra. Gere em: Facebook Business Settings → System Users
@@ -314,7 +388,7 @@ function EditBotPage() {
                 onChange={(e) => setPaymentConfirmedMessage(e.target.value)}
                 placeholder="✅ Pagamento confirmado! Obrigado pela compra de R$ {amount}."
                 rows={4}
-                className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
               />
               <p className="text-xs text-gray-500">
                 Mensagem enviada ao usuário após confirmação do pagamento. Use {"{amount}"} para incluir o valor pago.
@@ -357,10 +431,75 @@ function EditBotPage() {
                   value={startCaption}
                   onChange={(e) => setStartCaption(e.target.value)}
                   rows={4}
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 resize-none"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                 />
               </div>
             
+          </CardContent>
+        </Card>
+         {/* Botões de Pagamento */}
+         <Card className="bg-white border-gray-200 shadow-sm">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="text-lg font-semibold text-gray-900">Botões de Pagamento para /start</CardTitle>
+                <CardDescription className="text-gray-600 mt-1">Configure os valores que o bot oferecerá na mensagem inicial</CardDescription>
+              </div>
+              <Button 
+                type="button" 
+                onClick={addPaymentButton} 
+                variant="outline" 
+                size="sm"
+                className="border-gray-300 hover:bg-gray-50 text-gray-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Botão
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+
+              <div className="space-y-3">
+                {paymentButtons.map((btn, index) => (
+                  <div key={index} className="flex gap-3 items-end">
+                    <div className="flex-1 space-y-2">
+                      <Label className="text-gray-900 text-sm">Texto do Botão</Label>
+                      <Input
+                        placeholder="Ex: Plano Básico"
+                        value={btn.text}
+                        onChange={(e) =>
+                          updatePaymentButton(index, "text", e.target.value)
+                        }
+                        className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Label className="text-gray-900 text-sm">Valor (R$)</Label>
+                      <Input
+                        placeholder="Ex: 12,90"
+                        value={btn.value}
+                        onChange={(e) =>
+                          updatePaymentButton(index, "value", e.target.value)
+                        }
+                        className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
+                      />
+                    </div>
+                    {paymentButtons.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removePaymentButton(index)}
+                        className="text-gray-600 hover:bg-red-50 hover:text-red-600 mb-0.5"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            
+
           </CardContent>
         </Card>
 
@@ -385,7 +524,7 @@ function EditBotPage() {
                   value={resendCaption}
                   onChange={(e) => setResendCaption(e.target.value)}
                   rows={4}
-                  className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 resize-none"
+                  className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                 />
               </div>
 
@@ -399,7 +538,7 @@ function EditBotPage() {
                     value={resendFirstDelay}
                     onChange={(e) => setResendFirstDelay(parseInt(e.target.value) || 20)}
                     required
-                    className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                    className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                   />
                 </div>
 
@@ -412,7 +551,7 @@ function EditBotPage() {
                     value={resendInterval}
                     onChange={(e) => setResendInterval(parseInt(e.target.value) || 10)}
                     required
-                    className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                    className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                   />
                 
                 </div>
@@ -447,7 +586,7 @@ function EditBotPage() {
                           onChange={(e) =>
                             updateResendPaymentButton(index, "text", e.target.value)
                           }
-                          className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                          className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                         />
                       </div>
                       <div className="flex-1 space-y-2">
@@ -458,7 +597,7 @@ function EditBotPage() {
                           onChange={(e) =>
                             updateResendPaymentButton(index, "value", e.target.value)
                           }
-                          className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                          className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500 hover:border-gray-400"
                         />
                       </div>
                       {resendPaymentButtons.length > 1 && (
@@ -481,71 +620,7 @@ function EditBotPage() {
           </CardContent>
         </Card>
 
-        {/* Botões de Pagamento */}
-        <Card className="bg-white border-gray-200 shadow-sm">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle className="text-lg font-semibold text-gray-900">Botões de Pagamento para /start</CardTitle>
-                <CardDescription className="text-gray-600 mt-1">Configure os valores que o bot oferecerá na mensagem inicial</CardDescription>
-              </div>
-              <Button 
-                type="button" 
-                onClick={addPaymentButton} 
-                variant="outline" 
-                size="sm"
-                className="border-gray-300 hover:bg-gray-50 text-gray-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Botão
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-
-              <div className="space-y-3">
-                {paymentButtons.map((btn, index) => (
-                  <div key={index} className="flex gap-3 items-end">
-                    <div className="flex-1 space-y-2">
-                      <Label className="text-gray-900 text-sm">Texto do Botão</Label>
-                      <Input
-                        placeholder="Ex: Plano Básico"
-                        value={btn.text}
-                        onChange={(e) =>
-                          updatePaymentButton(index, "text", e.target.value)
-                        }
-                        className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <Label className="text-gray-900 text-sm">Valor (R$)</Label>
-                      <Input
-                        placeholder="Ex: 12,90"
-                        value={btn.value}
-                        onChange={(e) =>
-                          updatePaymentButton(index, "value", e.target.value)
-                        }
-                        className="bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                    </div>
-                    {paymentButtons.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removePaymentButton(index)}
-                        className="text-gray-600 hover:bg-red-50 hover:text-red-600 mb-0.5"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            
-
-          </CardContent>
-        </Card>
+       
 
         {/* Ações */}
         <div className="flex gap-4 pt-4">

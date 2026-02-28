@@ -15,7 +15,7 @@ function RootLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Rotas que não devem mostrar a sidebar
-  const hideSidebarRoutes = ["/sign-in", "/sign-up"];
+  const hideSidebarRoutes = ["/sign-in"];
   const shouldShowSidebar = !hideSidebarRoutes.includes(location.pathname) && user;
 
   const handleLogout = async () => {
