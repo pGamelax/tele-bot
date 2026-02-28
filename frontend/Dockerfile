@@ -27,12 +27,16 @@ RUN npm install -g serve
 # Copiar arquivos buildados
 COPY --from=build /app/dist ./dist
 
-# Expor porta (Coolify mapeia automaticamente)
+# Expor porta (usar variável de ambiente PORT ou padrão 3000)
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "const port = process.env.PORT || 3000; require('http').get(`http://localhost:${port}`, (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
 # Servir arquivos estáticos
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# -s: modo single-page application (fallback para index.html)
+# -l: porta para escutar (usa PORT do ambiente ou 3000)
+# --no-clipboard: não tentar copiar URL
+# --no-open: não tentar abrir no navegador
+CMD sh -c "serve -s dist -l ${PORT:-3000} --no-clipboard --no-open"
