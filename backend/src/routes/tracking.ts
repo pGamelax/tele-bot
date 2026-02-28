@@ -148,8 +148,13 @@ export const trackingRoutes = new Elysia({ prefix: "/api/tracking" })
 
       // Redirecionar diretamente para o Telegram
       const telegramUrl = `https://t.me/${botUsername}?start=${token}`;
-      set.redirect = telegramUrl;
-      return;
+      console.log(`[Tracking] Redirecionando para: ${telegramUrl}`);
+      
+      // Elysia não tem set.redirect, usar headers e status manualmente
+      set.headers["Location"] = telegramUrl;
+      set.status = 302;
+      set.headers["Content-Type"] = "text/html; charset=utf-8";
+      return `<html><head><meta http-equiv="refresh" content="0; url=${telegramUrl}"></head><body><script>window.location.href="${telegramUrl}";</script><p>Redirecionando para <a href="${telegramUrl}">Telegram</a>...</p></body></html>`;
     } catch (error: any) {
       console.error("[Tracking] Erro ao redirecionar:", error);
       set.status = 500;

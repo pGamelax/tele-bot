@@ -83,10 +83,39 @@ export class BotManager {
       
       if (fileName) {
         const filePath = join(this.UPLOAD_DIR, fileName);
+        console.log(`[BotManager] UPLOAD_DIR: ${this.UPLOAD_DIR}`);
+        console.log(`[BotManager] process.cwd(): ${process.cwd()}`);
         console.log(`[BotManager] Tentando ler arquivo: ${filePath}`);
         console.log(`[BotManager] Arquivo existe: ${existsSync(filePath)}`);
         
-        if (existsSync(filePath)) {
+        // Tentar caminhos alternativos se o arquivo não for encontrado
+        if (!existsSync(filePath)) {
+          // Tentar caminho relativo
+          const relativePath = join(process.cwd(), "uploads", fileName);
+          console.log(`[BotManager] Tentando caminho relativo: ${relativePath}`);
+          if (existsSync(relativePath)) {
+            try {
+              const fileBuffer = await readFile(relativePath);
+              console.log(`[BotManager] Arquivo lido do caminho relativo: ${relativePath} (${fileBuffer.length} bytes)`);
+              return new InputFile(fileBuffer, fileName);
+            } catch (error) {
+              console.error(`[BotManager] Erro ao ler arquivo ${relativePath}:`, error);
+            }
+          }
+          
+          // Tentar caminho absoluto do Docker
+          const dockerPath = join("/app/backend/uploads", fileName);
+          console.log(`[BotManager] Tentando caminho Docker: ${dockerPath}`);
+          if (existsSync(dockerPath)) {
+            try {
+              const fileBuffer = await readFile(dockerPath);
+              console.log(`[BotManager] Arquivo lido do caminho Docker: ${dockerPath} (${fileBuffer.length} bytes)`);
+              return new InputFile(fileBuffer, fileName);
+            } catch (error) {
+              console.error(`[BotManager] Erro ao ler arquivo ${dockerPath}:`, error);
+            }
+          }
+        } else {
           try {
             const fileBuffer = await readFile(filePath);
             console.log(`[BotManager] Arquivo lido com sucesso: ${filePath} (${fileBuffer.length} bytes)`);
@@ -94,17 +123,20 @@ export class BotManager {
           } catch (error) {
             console.error(`[BotManager] Erro ao ler arquivo ${filePath}:`, error);
           }
-        } else {
-          console.warn(`[BotManager] Arquivo não encontrado: ${filePath}`);
         }
+        
+        console.warn(`[BotManager] Arquivo não encontrado em nenhum caminho: ${fileName}`);
       }
     }
     
-    // Fallback: tentar baixar a URL se for do nosso servidor, senão retornar URL diretamente
+    // Fallback: tentar baixar a URL se for do nosso servidor
     if (isLocalUrl && apiUrl) {
       try {
         console.log(`[BotManager] Tentando baixar arquivo da URL: ${mediaUrl}`);
-        const response = await fetch(mediaUrl);
+        // Usar URL interna do container para evitar problemas de rede
+        const internalUrl = mediaUrl.replace(new URL(apiUrl).origin, `http://localhost:${process.env.PORT || 3000}`);
+        console.log(`[BotManager] Tentando URL interna: ${internalUrl}`);
+        const response = await fetch(internalUrl);
         console.log(`[BotManager] Resposta do fetch: ${response.status} ${response.statusText}`);
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
@@ -112,15 +144,32 @@ export class BotManager {
           console.log(`[BotManager] Arquivo baixado com sucesso: ${fileName} (${arrayBuffer.byteLength} bytes)`);
           return new InputFile(Buffer.from(arrayBuffer), fileName);
         } else {
-          console.warn(`[BotManager] Falha ao baixar arquivo: ${response.status} ${response.statusText}`);
+          console.error(`[BotManager] ERRO: Falha ao baixar arquivo: ${response.status} ${response.statusText}`);
+          // Se não conseguir baixar, tentar ler do sistema de arquivos novamente com caminho absoluto
+          if (fileName) {
+            const absolutePath = join(this.UPLOAD_DIR, fileName);
+            console.log(`[BotManager] Tentando ler arquivo novamente com caminho absoluto: ${absolutePath}`);
+            if (existsSync(absolutePath)) {
+              try {
+                const fileBuffer = await readFile(absolutePath);
+                console.log(`[BotManager] Arquivo lido do sistema de arquivos: ${absolutePath} (${fileBuffer.length} bytes)`);
+                return new InputFile(fileBuffer, fileName);
+              } catch (error) {
+                console.error(`[BotManager] Erro ao ler arquivo ${absolutePath}:`, error);
+              }
+            }
+          }
+          throw new Error(`Arquivo não encontrado: ${mediaUrl}`);
         }
       } catch (error) {
         console.error(`[BotManager] Erro ao baixar arquivo de ${mediaUrl}:`, error);
+        // Se for URL local e falhar, não retornar URL (vai dar erro no Telegram)
+        throw new Error(`Não foi possível acessar o arquivo: ${mediaUrl}`);
       }
     }
     
-    // Último fallback: retornar URL diretamente (Telegram tentará baixar)
-    console.log(`[BotManager] Retornando URL diretamente: ${mediaUrl}`);
+    // Se não for URL local, retornar URL diretamente (Telegram tentará baixar)
+    console.log(`[BotManager] Retornando URL externa diretamente: ${mediaUrl}`);
     return mediaUrl;
   }
 
@@ -170,18 +219,35 @@ export class BotManager {
       const caption = (config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       
       if (config.startImage) {
-        const isVideo = this.isVideoUrl(config.startImage);
-        const media = await this.getMediaInput(config.startImage);
-        
-        if (isVideo) {
-          await bot.api.sendVideo(parseInt(chatId), media, {
-            caption: caption,
-            reply_markup: keyboard,
-            parse_mode: undefined,
-          });
-        } else {
-          await bot.api.sendPhoto(parseInt(chatId), media, {
-            caption: caption,
+        try {
+          const isVideo = this.isVideoUrl(config.startImage);
+          const media = await this.getMediaInput(config.startImage);
+          
+          // Verificar se o media é uma string (URL) e se é URL local que falhou
+          if (typeof media === 'string' && (media.includes('bot-backend.clashdata.pro') || media.includes('localhost'))) {
+            console.warn(`[Bot ${botId}] Arquivo não encontrado, enviando apenas texto`);
+            await bot.api.sendMessage(parseInt(chatId), caption, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          } else {
+            if (isVideo) {
+              await bot.api.sendVideo(parseInt(chatId), media, {
+                caption: caption,
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            } else {
+              await bot.api.sendPhoto(parseInt(chatId), media, {
+                caption: caption,
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Bot ${botId}] Erro ao enviar mídia, enviando apenas texto:`, error);
+          await bot.api.sendMessage(parseInt(chatId), caption, {
             reply_markup: keyboard,
             parse_mode: undefined,
           });
@@ -222,18 +288,35 @@ export class BotManager {
       const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
       if (mediaUrl) {
-        const isVideo = this.isVideoUrl(mediaUrl);
-        const media = await this.getMediaInput(mediaUrl);
-        
-        if (isVideo) {
-          await bot.api.sendVideo(parseInt(chatId), media, {
-            caption: captionText,
-            reply_markup: keyboard,
-            parse_mode: undefined,
-          });
-        } else {
-          await bot.api.sendPhoto(parseInt(chatId), media, {
-            caption: captionText,
+        try {
+          const isVideo = this.isVideoUrl(mediaUrl);
+          const media = await this.getMediaInput(mediaUrl);
+          
+          // Verificar se o media é uma string (URL) e se é URL local que falhou
+          if (typeof media === 'string' && (media.includes('bot-backend.clashdata.pro') || media.includes('localhost'))) {
+            console.warn(`[Bot ${botId}] Arquivo não encontrado no reenvio, enviando apenas texto`);
+            await bot.api.sendMessage(parseInt(chatId), captionText, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          } else {
+            if (isVideo) {
+              await bot.api.sendVideo(parseInt(chatId), media, {
+                caption: captionText,
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            } else {
+              await bot.api.sendPhoto(parseInt(chatId), media, {
+                caption: captionText,
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Bot ${botId}] Erro ao enviar mídia no reenvio, enviando apenas texto:`, error);
+          await bot.api.sendMessage(parseInt(chatId), captionText, {
             reply_markup: keyboard,
             parse_mode: undefined,
           });
