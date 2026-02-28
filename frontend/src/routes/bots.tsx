@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Bot, Trash2, Edit, Power, PowerOff, Settings, DollarSign, Copy } from "lucide-react";
+import { Plus, Bot, Trash2, Edit, Power, PowerOff, Settings, DollarSign } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { useApi } from "@/hooks/use-api";
