@@ -32,7 +32,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "const port = process.env.PORT || 3000; require('http').get(`http://localhost:${port}`, (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+  CMD node -e "const port = process.env.PORT || 3000; const url = 'http://localhost:' + port; require('http').get(url, (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
 # Servir arquivos estáticos
 # -s: modo single-page application (fallback para index.html)
