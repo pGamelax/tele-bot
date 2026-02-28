@@ -44,35 +44,66 @@ export class BotManager {
 
   // Helper para converter URL local em InputFile
   private async getMediaInput(mediaUrl: string): Promise<string | InputFile> {
-    // Se não for URL local (localhost ou 127.0.0.1), retornar URL diretamente
-    // Verificar também se é uma URL relativa que precisa ser convertida
-    const isLocalUrl = mediaUrl.includes("localhost") || 
-                       mediaUrl.includes("127.0.0.1") || 
-                       (mediaUrl.startsWith("/uploads/") && !mediaUrl.startsWith("http"));
+    // Verificar se é uma URL que aponta para nosso servidor (localhost, 127.0.0.1, ou nosso domínio)
+    const apiUrl = process.env.API_URL || process.env.BETTER_AUTH_URL || "";
+    let isLocalUrl = mediaUrl.includes("localhost") || 
+                     mediaUrl.includes("127.0.0.1") || 
+                     (mediaUrl.startsWith("/uploads/") && !mediaUrl.startsWith("http"));
     
-    if (!isLocalUrl) {
-      return mediaUrl;
+    // Verificar se a URL contém o hostname do nosso servidor
+    if (apiUrl && !isLocalUrl) {
+      try {
+        const apiHostname = new URL(apiUrl).hostname;
+        isLocalUrl = mediaUrl.includes(apiHostname);
+      } catch (e) {
+        // Se apiUrl não for uma URL válida, ignorar
+      }
     }
-
-    // Extrair nome do arquivo da URL
-    const fileName = mediaUrl.split("/uploads/")[1];
-    if (!fileName) {
-      return mediaUrl; // Fallback para URL se não conseguir extrair
+    
+    // Se for URL do nosso servidor, tentar ler do sistema de arquivos
+    if (isLocalUrl) {
+      // Extrair nome do arquivo da URL
+      let fileName: string | null = null;
+      
+      if (mediaUrl.includes("/uploads/")) {
+        fileName = mediaUrl.split("/uploads/")[1]?.split("?")[0]; // Remove query params se houver
+      } else if (mediaUrl.startsWith("/uploads/")) {
+        fileName = mediaUrl.replace("/uploads/", "").split("?")[0];
+      }
+      
+      if (fileName) {
+        const filePath = join(this.UPLOAD_DIR, fileName);
+        if (existsSync(filePath)) {
+          try {
+            const fileBuffer = await readFile(filePath);
+            console.log(`[BotManager] Lendo arquivo local: ${filePath}`);
+            return new InputFile(fileBuffer, fileName);
+          } catch (error) {
+            console.error(`[BotManager] Erro ao ler arquivo ${filePath}:`, error);
+          }
+        } else {
+          console.warn(`[BotManager] Arquivo não encontrado: ${filePath}`);
+        }
+      }
     }
-
-    const filePath = join(this.UPLOAD_DIR, fileName);
-    if (!existsSync(filePath)) {
-      console.warn(`Arquivo não encontrado: ${filePath}`);
-      return mediaUrl; // Fallback para URL
+    
+    // Fallback: tentar baixar a URL se for do nosso servidor, senão retornar URL diretamente
+    if (isLocalUrl && apiUrl) {
+      try {
+        const response = await fetch(mediaUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const fileName = mediaUrl.split("/").pop()?.split("?")[0] || "image.jpg";
+          console.log(`[BotManager] Baixando arquivo da URL: ${mediaUrl}`);
+          return new InputFile(Buffer.from(arrayBuffer), fileName);
+        }
+      } catch (error) {
+        console.error(`[BotManager] Erro ao baixar arquivo de ${mediaUrl}:`, error);
+      }
     }
-
-    try {
-      const fileBuffer = await readFile(filePath);
-      return new InputFile(fileBuffer, fileName);
-    } catch (error) {
-      console.error(`Erro ao ler arquivo ${filePath}:`, error);
-      return mediaUrl; // Fallback para URL
-    }
+    
+    // Último fallback: retornar URL diretamente (Telegram tentará baixar)
+    return mediaUrl;
   }
 
   async startBot(botId: string, token: string, config: BotConfig) {

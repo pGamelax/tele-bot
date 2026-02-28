@@ -498,25 +498,27 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
       // Parar bot atual se estiver rodando
       await botManager.stopBot(params.id);
 
+      // Preparar dados de atualização (permitir null para limpar campos)
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (telegramToken !== undefined) updateData.telegramToken = telegramToken;
+      if (syncpayApiKey !== undefined) updateData.syncpayApiKey = syncpayApiKey;
+      if (syncpayApiSecret !== undefined) updateData.syncpayApiSecret = syncpayApiSecret;
+      if (startImage !== undefined) updateData.startImage = (startImage && startImage.trim()) ? startImage.trim() : null;
+      if (startCaption !== undefined) updateData.startCaption = (startCaption && startCaption.trim()) ? startCaption.trim() : null;
+      if (resendImage !== undefined) updateData.resendImage = (resendImage && resendImage.trim()) ? resendImage.trim() : null;
+      if (resendCaption !== undefined) updateData.resendCaption = (resendCaption && resendCaption.trim()) ? resendCaption.trim() : null;
+      if (resendFirstDelay !== undefined) updateData.resendFirstDelay = resendFirstDelay;
+      if (resendInterval !== undefined) updateData.resendInterval = resendInterval;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (facebookPixelId !== undefined) updateData.facebookPixelId = facebookPixelId || null;
+      if (facebookAccessToken !== undefined) updateData.facebookAccessToken = facebookAccessToken || null;
+      if (paymentConfirmedMessage !== undefined) updateData.paymentConfirmedMessage = paymentConfirmedMessage || null;
+
       // Atualizar no banco
       const bot = await prisma.bot.update({
         where: { id: params.id, userId: user.id },
-        data: {
-          name,
-          telegramToken,
-          syncpayApiKey,
-          syncpayApiSecret,
-          startImage,
-          startCaption,
-          resendImage,
-          resendCaption,
-          resendFirstDelay,
-          resendInterval,
-          isActive,
-          facebookPixelId: facebookPixelId !== undefined ? facebookPixelId : undefined,
-          facebookAccessToken: facebookAccessToken !== undefined ? facebookAccessToken : undefined,
-          paymentConfirmedMessage: paymentConfirmedMessage !== undefined ? paymentConfirmedMessage : undefined,
-        } as any,
+        data: updateData,
         include: {
           paymentButtons: true,
         },
