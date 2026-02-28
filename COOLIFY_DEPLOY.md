@@ -67,6 +67,7 @@ FACEBOOK_EVENT_SOURCE_URL=https://telegram.org
 3. **Repositório**: Seu repositório Git
 4. **Dockerfile Path**: `frontend/Dockerfile`
 5. **Context**: Raiz do repositório
+6. **Porta**: 80 (o Coolify gerenciará o Nginx automaticamente)
 
 #### Variáveis de Ambiente do Frontend
 

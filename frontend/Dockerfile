@@ -24,9 +24,6 @@ WORKDIR /usr/share/nginx/html
 # Copiar arquivos buildados
 COPY --from=build /app/dist ./
 
-# Copiar configuração do Nginx
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-
 # Expor porta
 EXPOSE 80
 
