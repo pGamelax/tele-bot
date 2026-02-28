@@ -3,14 +3,20 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
-const UPLOAD_DIR = join(process.cwd(), "uploads");
+// Usar caminho absoluto para garantir que funciona no Docker
+const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB para imagens
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB para vídeos
 
-// Criar diretório de uploads se não existir
-if (!existsSync(UPLOAD_DIR)) {
-  mkdir(UPLOAD_DIR, { recursive: true });
-}
+// Criar diretório de uploads se não existir (assíncrono)
+(async () => {
+  if (!existsSync(UPLOAD_DIR)) {
+    await mkdir(UPLOAD_DIR, { recursive: true });
+    console.log(`[Upload] Diretório de uploads criado: ${UPLOAD_DIR}`);
+  } else {
+    console.log(`[Upload] Diretório de uploads já existe: ${UPLOAD_DIR}`);
+  }
+})();
 
 export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
   .post("/media", async ({ request, set }) => {
@@ -59,6 +65,10 @@ export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
         return { error: "API_URL ou BETTER_AUTH_URL não configurado" };
       }
       const url = `${baseUrl}/uploads/${fileName}`;
+
+      console.log(`[Upload] Arquivo salvo: ${filePath}`);
+      console.log(`[Upload] URL retornada: ${url}`);
+      console.log(`[Upload] Tipo: ${isImage ? "image" : "video"}`);
 
       return { url, fileName, type: isImage ? "image" : "video" };
     } catch (error: any) {

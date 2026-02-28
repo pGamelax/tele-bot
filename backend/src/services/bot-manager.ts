@@ -24,7 +24,8 @@ interface BotConfig {
 export class BotManager {
   private static instance: BotManager;
   private bots: Map<string, Bot> = new Map();
-  private UPLOAD_DIR = join(process.cwd(), "uploads");
+  // Usar caminho absoluto para garantir que funciona no Docker
+  private UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
   // Armazenar timers de reenvio por botId e chatId
   private resendTimers: Map<string, Map<string, NodeJS.Timeout>> = new Map();
 
@@ -44,19 +45,25 @@ export class BotManager {
 
   // Helper para converter URL local em InputFile
   private async getMediaInput(mediaUrl: string): Promise<string | InputFile> {
+    console.log(`[BotManager] getMediaInput chamado com URL: ${mediaUrl}`);
+    
     // Verificar se é uma URL que aponta para nosso servidor (localhost, 127.0.0.1, ou nosso domínio)
     const apiUrl = process.env.API_URL || process.env.BETTER_AUTH_URL || "";
     let isLocalUrl = mediaUrl.includes("localhost") || 
                      mediaUrl.includes("127.0.0.1") || 
                      (mediaUrl.startsWith("/uploads/") && !mediaUrl.startsWith("http"));
     
+    console.log(`[BotManager] API_URL: ${apiUrl}`);
+    console.log(`[BotManager] isLocalUrl inicial: ${isLocalUrl}`);
+    
     // Verificar se a URL contém o hostname do nosso servidor
     if (apiUrl && !isLocalUrl) {
       try {
         const apiHostname = new URL(apiUrl).hostname;
         isLocalUrl = mediaUrl.includes(apiHostname);
+        console.log(`[BotManager] Verificando hostname ${apiHostname}: ${isLocalUrl}`);
       } catch (e) {
-        // Se apiUrl não for uma URL válida, ignorar
+        console.warn(`[BotManager] Erro ao parsear API_URL:`, e);
       }
     }
     
@@ -71,12 +78,17 @@ export class BotManager {
         fileName = mediaUrl.replace("/uploads/", "").split("?")[0];
       }
       
+      console.log(`[BotManager] Nome do arquivo extraído: ${fileName}`);
+      
       if (fileName) {
         const filePath = join(this.UPLOAD_DIR, fileName);
+        console.log(`[BotManager] Tentando ler arquivo: ${filePath}`);
+        console.log(`[BotManager] Arquivo existe: ${existsSync(filePath)}`);
+        
         if (existsSync(filePath)) {
           try {
             const fileBuffer = await readFile(filePath);
-            console.log(`[BotManager] Lendo arquivo local: ${filePath}`);
+            console.log(`[BotManager] Arquivo lido com sucesso: ${filePath} (${fileBuffer.length} bytes)`);
             return new InputFile(fileBuffer, fileName);
           } catch (error) {
             console.error(`[BotManager] Erro ao ler arquivo ${filePath}:`, error);
@@ -90,12 +102,16 @@ export class BotManager {
     // Fallback: tentar baixar a URL se for do nosso servidor, senão retornar URL diretamente
     if (isLocalUrl && apiUrl) {
       try {
+        console.log(`[BotManager] Tentando baixar arquivo da URL: ${mediaUrl}`);
         const response = await fetch(mediaUrl);
+        console.log(`[BotManager] Resposta do fetch: ${response.status} ${response.statusText}`);
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
           const fileName = mediaUrl.split("/").pop()?.split("?")[0] || "image.jpg";
-          console.log(`[BotManager] Baixando arquivo da URL: ${mediaUrl}`);
+          console.log(`[BotManager] Arquivo baixado com sucesso: ${fileName} (${arrayBuffer.byteLength} bytes)`);
           return new InputFile(Buffer.from(arrayBuffer), fileName);
+        } else {
+          console.warn(`[BotManager] Falha ao baixar arquivo: ${response.status} ${response.statusText}`);
         }
       } catch (error) {
         console.error(`[BotManager] Erro ao baixar arquivo de ${mediaUrl}:`, error);
@@ -103,15 +119,34 @@ export class BotManager {
     }
     
     // Último fallback: retornar URL diretamente (Telegram tentará baixar)
+    console.log(`[BotManager] Retornando URL diretamente: ${mediaUrl}`);
     return mediaUrl;
   }
 
   async startBot(botId: string, token: string, config: BotConfig) {
     // Parar bot existente se houver
     await this.stopBot(botId);
+    
+    // Aguardar um pouco para garantir que o bot anterior foi completamente parado
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const bot = new Bot(token);
     const syncpay = new SyncPayService(config.syncpayApiKey, config.syncpayApiSecret);
+    
+    // Adicionar handler de erro global para capturar erros 409 durante o long polling
+    bot.catch((error) => {
+      const errorCode = (error as any).error_code || (error as any).error?.error_code;
+      const errorDesc = (error as any).description || (error as any).error?.description || (error as any).message || '';
+      
+      if (errorCode === 409 || errorDesc.includes('409') || errorDesc.includes('Conflict')) {
+        console.warn(`[Bot ${botId}] Erro 409 detectado durante long polling. Parando bot...`);
+        this.stopBot(botId).catch(err => {
+          console.error(`[Bot ${botId}] Erro ao parar bot após 409:`, err);
+        });
+      } else {
+        console.error(`[Bot ${botId}] Erro não tratado:`, error);
+      }
+    });
 
     // Função para enviar mensagem de start (reutilizável)
     const sendStartMessage = async (chatId: string) => {
@@ -533,10 +568,16 @@ export class BotManager {
     });
 
     // Iniciar bot
-    bot.start();
-    this.bots.set(botId, bot);
-
-    console.log(`Bot ${botId} iniciado com sucesso`);
+    // Nota: bot.start() inicia o long polling de forma assíncrona
+    // Erros podem ocorrer durante o long polling, não imediatamente
+    try {
+      bot.start();
+      this.bots.set(botId, bot);
+      console.log(`Bot ${botId} iniciado com sucesso`);
+    } catch (error: any) {
+      console.error(`[Bot ${botId}] Erro ao iniciar bot:`, error);
+      // Não lançar o erro para não quebrar o fluxo, mas logar
+    }
   }
 
   // Parar reenvios para um chat específico
@@ -567,23 +608,31 @@ export class BotManager {
   async stopBot(botId: string) {
     const bot = this.bots.get(botId);
     if (bot) {
-      await bot.stop();
-      this.bots.delete(botId);
-      
-      // Limpar todos os timers de reenvio deste bot
-      const botTimers = this.resendTimers.get(botId);
-      if (botTimers) {
-        for (const timer of botTimers.values()) {
-          if (typeof timer === 'number') {
-            clearTimeout(timer);
-          } else {
-            clearInterval(timer);
+      try {
+        // Parar o bot e aguardar um pouco para garantir que parou completamente
+        await bot.stop();
+        // Aguardar um pouco mais para garantir que o long polling foi encerrado
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`Erro ao parar bot ${botId}:`, error);
+      } finally {
+        this.bots.delete(botId);
+        
+        // Limpar todos os timers de reenvio deste bot
+        const botTimers = this.resendTimers.get(botId);
+        if (botTimers) {
+          for (const timer of botTimers.values()) {
+            if (typeof timer === 'number') {
+              clearTimeout(timer);
+            } else {
+              clearInterval(timer);
+            }
           }
+          this.resendTimers.delete(botId);
         }
-        this.resendTimers.delete(botId);
+        
+        console.log(`Bot ${botId} parado`);
       }
-      
-      console.log(`Bot ${botId} parado`);
     }
   }
 
@@ -674,8 +723,19 @@ export class BotManager {
       include: { paymentButtons: true },
     });
 
+    // Parar todos os bots primeiro
     for (const bot of activeBots) {
-      await this.startBot(bot.id, bot.telegramToken, {
+      await this.stopBot(bot.id);
+    }
+    
+    // Aguardar um pouco antes de reiniciar todos
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Iniciar bots com delay entre cada um para evitar conflitos
+    for (let i = 0; i < activeBots.length; i++) {
+      const bot = activeBots[i];
+      try {
+        await this.startBot(bot.id, bot.telegramToken, {
         syncpayApiKey: bot.syncpayApiKey,
         syncpayApiSecret: bot.syncpayApiSecret,
         startImage: bot.startImage,
@@ -697,7 +757,16 @@ export class BotManager {
             value: btn.value,
           })),
         paymentConfirmedMessage: bot.paymentConfirmedMessage,
-      });
+        });
+      } catch (error: any) {
+        console.error(`Erro ao iniciar bot ${bot.id}:`, error);
+        // Continuar com os próximos bots mesmo se um falhar
+      }
+      
+      // Aguardar um pouco entre cada bot para evitar conflitos
+      if (i < activeBots.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
   }
 }

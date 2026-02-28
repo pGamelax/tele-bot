@@ -4,6 +4,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Upload, X, Image as ImageIcon, Video } from "lucide-react";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 interface ImageUploadProps {
   value?: string;
   onChange: (url: string) => void;
@@ -73,7 +75,7 @@ export function ImageUpload({ value, onChange, label = "Mídia" }: ImageUploadPr
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/upload/media", {
+      const response = await fetch(`${API_URL}/api/upload/media`, {
         method: "POST",
         body: formData,
         credentials: "include",

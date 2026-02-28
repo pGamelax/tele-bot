@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { staticPlugin } from "@elysiajs/static";
 import { PrismaClient } from "@prisma/client";
+import { join } from "path";
 import { auth } from "./lib/auth";
 import { botRoutes } from "./routes/bots";
 import { paymentRoutes } from "./routes/payments";
@@ -47,7 +48,10 @@ const app = new Elysia()
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
   }))
   .use(swagger())
-  .use(staticPlugin({ assets: "./uploads", prefix: "/uploads" }))
+  .use(staticPlugin({ 
+    assets: process.env.UPLOAD_DIR || join(process.cwd(), "uploads"), 
+    prefix: "/uploads" 
+  }))
   .decorate("db", prisma)
   .mount(auth.handler)
   .derive(async ({ request }) => {
