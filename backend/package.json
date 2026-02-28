@@ -1,0 +1,30 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir ./build --target bun",
+    "start": "bun run build/index.js",
+    "db:generate": "npx prisma generate",
+    "db:migrate": "npx prisma migrate dev --skip-generate",
+    "db:migrate:generate": "npm run db:generate && npm run db:migrate",
+    "db:studio": "npx prisma studio",
+    "db:push": "npx prisma db push --skip-generate"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.1.1",
+    "@elysiajs/static": "^1.1.1",
+    "@elysiajs/swagger": "^1.1.2",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
+    "better-auth": "^1.4.18",
+    "elysia": "^1.1.0",
+    "grammy": "^1.21.0",
+    "prisma": "^5.22.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.10.0"
+  }
+}

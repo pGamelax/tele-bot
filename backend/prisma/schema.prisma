@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  password      String?  // Senha hasheada (usado pelo Better Auth com emailAndPassword)
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  bots     Bot[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  accountId         String
+  userId            String
+  providerId        String
+  type              String  @default("credential")
+  provider          String  @default("credential")
+  providerAccountId String  @default("")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  password          String? @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @default(cuid())
+  token        String   @unique
+  userId       String
+  expires      DateTime?
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Bot {
+  id              String   @id @default(cuid())
+  name            String
+  telegramToken   String   @unique
+  syncpayApiKey   String
+  syncpayApiSecret String
+  startImage      String?  // URL da imagem
+  startCaption    String?  // Caption da imagem
+  isActive        Boolean  @default(true)
+  // Configuração de reenvio
+  resendImage     String?  // URL da imagem para reenvio
+  resendCaption   String?  // Caption para reenvio
+  resendFirstDelay Int     @default(20) // Minutos até primeiro reenvio
+  resendInterval  Int      @default(10) // Minutos entre reenvios
+  // Rastreamento Facebook Ads
+  facebookPixelId String?  // Facebook Pixel ID para rastreamento
+  facebookAccessToken String?  // Facebook Access Token para Conversions API
+  // Mensagem após confirmação de pagamento
+  paymentConfirmedMessage String?  // Mensagem enviada após confirmação de pagamento
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paymentButtons PaymentButton[]
+  leads          Lead[]
+
+  @@map("bots")
+}
+
+model PaymentButton {
+  id          String   @id @default(cuid())
+  text        String   // Texto do botão
+  value       Int      // Valor em centavos (ex: 1290 = R$ 12,90)
+  type        String   @default("start") // "start" ou "resend"
+  botId       String
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("payment_buttons")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  botId           String
+  telegramChatId  String
+  amount          Int      // Valor em centavos
+  syncpayId       String?  // ID do pagamento no SyncPay
+  status          String   @default("pending") // pending, paid, expired, cancelled
+  pixCode         String?  // Código PIX
+  qrCode          String?  // QR Code
+  expiresAt       DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  botId           String
+  telegramChatId  String
+  telegramUsername String?
+  firstName       String?
+  lastName        String?
+  isNew           Boolean  @default(true) // Marca se é um novo cliente
+  notes           String?  // Notas sobre o lead
+  contactedAt     DateTime? // Quando foi contatado
+  convertedAt     DateTime? // Quando se tornou cliente (comprou)
+  // Rastreamento Facebook Ads / UTM
+  utmSource       String?  // utm_source (ex: facebook, google)
+  utmMedium       String?  // utm_medium (ex: cpc, social)
+  utmCampaign     String?  // utm_campaign (nome da campanha)
+  utmContent      String?  // utm_content (conteúdo específico)
+  utmTerm         String?  // utm_term (palavra-chave)
+  fbclid          String?  // Facebook Click ID
+  gclid           String?  // Google Click ID
+  ref             String?  // Parâmetro de referência customizado
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("leads")
+}

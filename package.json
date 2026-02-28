@@ -1,0 +1,19 @@
+{
+  "name": "tele-bot",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "bun run --filter=backend dev & bun run --filter=frontend dev",
+    "build": "bun run --filter=backend build && bun run --filter=frontend build",
+    "db:migrate": "bun run --filter=backend db:migrate",
+    "db:generate": "bun run --filter=backend db:generate",
+    "db:studio": "bun run --filter=backend db:studio"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}
