@@ -43,9 +43,9 @@ RUN chmod +x ./start.sh
 # Expor porta
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD bun -e "fetch('http://localhost:3000/').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+# Health check (usa PORT do ambiente ou 3000)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD sh -c "port=\${PORT:-3000} && bun -e \"const p = process.env.PORT || '3000'; fetch('http://localhost:' + p).then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""
 
 # Comando de inicialização
 CMD ["./start.sh"]
