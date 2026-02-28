@@ -75,24 +75,33 @@ export function ImageUpload({ value, onChange, label = "Mídia" }: ImageUploadPr
       const formData = new FormData();
       formData.append("file", file);
 
+      console.log(`[ImageUpload] Fazendo upload para: ${API_URL}/api/upload/media`);
+      console.log(`[ImageUpload] Arquivo: ${file.name}, Tamanho: ${file.size} bytes, Tipo: ${file.type}`);
+
       const response = await fetch(`${API_URL}/api/upload/media`, {
         method: "POST",
         body: formData,
         credentials: "include",
       });
 
+      console.log(`[ImageUpload] Resposta recebida: ${response.status} ${response.statusText}`);
+
       const data = await response.json();
+      console.log(`[ImageUpload] Dados recebidos:`, data);
 
       if (!response.ok) {
+        console.error(`[ImageUpload] Erro na resposta:`, data);
         throw new Error(data.error || "Erro ao fazer upload");
       }
 
+      console.log(`[ImageUpload] Upload bem-sucedido! URL: ${data.url}`);
       onChange(data.url);
       toast({
         title: "Sucesso!",
         description: `${isImage ? "Imagem" : "Vídeo"} enviado com sucesso`,
       });
     } catch (error: any) {
+      console.error(`[ImageUpload] Erro ao fazer upload:`, error);
       toast({
         title: "Erro",
         description: error.message,

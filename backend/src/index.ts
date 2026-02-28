@@ -42,7 +42,9 @@ const userMiddleware = async (request: Request) => {
   };
 };
 
-const app = new Elysia()
+const app = new Elysia({
+  bodyLimit: 60 * 1024 * 1024, // 60MB para permitir uploads de vídeos grandes
+})
   .use(cors({
     credentials: true,
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
