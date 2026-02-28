@@ -17,14 +17,22 @@ ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
-# Produção com Nginx
-FROM nginx:alpine AS production
-WORKDIR /usr/share/nginx/html
+# Produção - servir arquivos estáticos com serve
+FROM node:20-alpine AS production
+WORKDIR /app
+
+# Instalar serve globalmente
+RUN npm install -g serve
 
 # Copiar arquivos buildados
-COPY --from=build /app/dist ./
+COPY --from=build /app/dist ./dist
 
-# Expor porta
-EXPOSE 80
+# Expor porta (Coolify mapeia automaticamente)
+EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+
+# Servir arquivos estáticos
+CMD ["serve", "-s", "dist", "-l", "3000"]
