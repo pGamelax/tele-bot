@@ -36,16 +36,17 @@ RUN mkdir -p uploads
 # Gerar Prisma Client
 RUN bunx prisma generate
 
-# Copiar script de inicialização
+# Copiar scripts
 COPY backend/start.sh ./start.sh
-RUN chmod +x ./start.sh
+COPY backend/healthcheck.sh ./healthcheck.sh
+RUN chmod +x ./start.sh ./healthcheck.sh
 
 # Expor porta
 EXPOSE 3000
 
 # Health check (usa PORT do ambiente ou 3000)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD sh -c "port=\${PORT:-3000} && bun -e \"const p = process.env.PORT || '3000'; fetch('http://localhost:' + p).then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""
+  CMD ["./healthcheck.sh"]
 
 # Comando de inicialização
 CMD ["./start.sh"]
