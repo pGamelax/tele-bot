@@ -38,5 +38,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # -s: modo single-page application (fallback para index.html)
 # -l: porta para escutar (usa PORT do ambiente ou 3000)
 # --no-clipboard: não tentar copiar URL
-# --no-open: não tentar abrir no navegador
-CMD sh -c "serve -s dist -l ${PORT:-3000} --no-clipboard --no-open"
+CMD sh -c "serve -s dist -l ${PORT:-3000} --no-clipboard"
