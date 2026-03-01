@@ -140,13 +140,13 @@ const app = new Elysia({
   .use(leadRoutes)
   .use(webhookRoutes)
   .use(trackingRoutes)
-  .get("/", () => ({ message: "Tele Bot API" }))
-  .listen(process.env.PORT || 3000, () => {
-    console.log(
-      `🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`
-    );
-    // Inicializar bots após o servidor iniciar completamente
-    initializeBots();
-  });
+  .get("/", () => ({ message: "Tele Bot API" }));
+
+const port = parseInt(process.env.PORT || "3000");
+app.listen(port, () => {
+  console.log(`🦊 Elysia is running at http://0.0.0.0:${port}`);
+  // Inicializar bots após o servidor iniciar completamente
+  initializeBots();
+});
 
 export type App = typeof app;
