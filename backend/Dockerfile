@@ -28,6 +28,7 @@ COPY --from=deps /app/backend/node_modules ./node_modules
 COPY --from=build /app/backend/build ./build
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/src ./src
+COPY --from=build /app/backend/scripts ./scripts
 COPY --from=build /app/backend/package.json ./
 
 # Criar diretório de uploads e definir variável de ambiente
