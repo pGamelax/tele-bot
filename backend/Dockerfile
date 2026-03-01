@@ -35,7 +35,7 @@ RUN mkdir -p uploads
 ENV UPLOAD_DIR=/app/backend/uploads
 
 # Gerar Prisma Client
-RUN bunx prisma generate
+RUN bunx --bun prisma generate
 
 # Copiar scripts
 COPY backend/start.sh ./start.sh
