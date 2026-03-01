@@ -26,7 +26,7 @@ FROM base AS production
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Copiar apenas arquivos necessários
@@ -34,12 +34,12 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 
-# Expor porta
-EXPOSE 3001
+# Expor porta (usa PORT do ambiente ou 3000)
+EXPOSE 3000
 
-# Health check (Bun pode executar código Node.js)
+# Health check usando Bun
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD bun -e "fetch('http://localhost:3001').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD bun -e "fetch('http://localhost:' + (process.env.PORT || '3000')).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Iniciar servidor Next.js com Bun (Bun tem compatibilidade com Node.js)
 CMD ["bun", "run", "server.js"]
