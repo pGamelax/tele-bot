@@ -1,8 +1,12 @@
 #!/bin/sh
 set -e
 
-echo "🔧 Gerando Prisma Client..."
-bunx prisma generate
+echo "🔧 Verificando Prisma Client..."
+# Verificar se o Prisma Client já foi gerado (no Dockerfile)
+if [ ! -f "./node_modules/.prisma/client/index.js" ]; then
+  echo "⚠️  Prisma Client não encontrado, gerando..."
+  bunx prisma generate
+fi
 
 echo "📊 Aplicando migrações do banco de dados..."
 bunx prisma db push --skip-generate || echo "⚠️  Aviso: Erro ao aplicar migrações (pode ser normal se já existirem)"
