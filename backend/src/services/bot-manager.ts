@@ -177,20 +177,24 @@ export class BotManager {
     // Parar bot existente se houver
     await this.stopBot(botId);
     
-    // Aguardar um pouco para garantir que o bot anterior foi completamente parado
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Aguardar mais tempo para garantir que o bot anterior foi completamente parado
+    // e que não há conflitos com outras instâncias
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const bot = new Bot(token);
     const syncpay = new SyncPayService(config.syncpayApiKey, config.syncpayApiSecret);
     
     // Adicionar handler de erro global para capturar erros 409 durante o long polling
-    bot.catch((error) => {
+    bot.catch(async (error) => {
       const errorCode = (error as any).error_code || (error as any).error?.error_code;
       const errorDesc = (error as any).description || (error as any).error?.description || (error as any).message || '';
       
       if (errorCode === 409 || errorDesc.includes('409') || errorDesc.includes('Conflict')) {
-        console.warn(`[Bot ${botId}] Erro 409 detectado durante long polling. Parando bot...`);
-        this.stopBot(botId).catch(err => {
+        console.warn(`[Bot ${botId}] Erro 409 detectado durante long polling. Aguardando 10 segundos antes de parar...`);
+        // Aguardar antes de parar para dar tempo de outras instâncias terminarem
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.warn(`[Bot ${botId}] Parando bot após erro 409...`);
+        await this.stopBot(botId).catch(err => {
           console.error(`[Bot ${botId}] Erro ao parar bot após 409:`, err);
         });
       } else {
@@ -864,18 +868,22 @@ export class BotManager {
       include: { paymentButtons: true },
     });
 
+    console.log(`[BotManager] Reiniciando ${activeBots.length} bot(s) ativo(s)...`);
+
     // Parar todos os bots primeiro
     for (const bot of activeBots) {
       await this.stopBot(bot.id);
     }
     
-    // Aguardar um pouco antes de reiniciar todos
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Aguardar mais tempo antes de reiniciar todos para garantir que todos foram parados
+    console.log(`[BotManager] Aguardando 10 segundos antes de reiniciar bots...`);
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     // Iniciar bots com delay entre cada um para evitar conflitos
     for (let i = 0; i < activeBots.length; i++) {
       const bot = activeBots[i];
       try {
+        console.log(`[BotManager] Iniciando bot ${i + 1}/${activeBots.length} (${bot.id})...`);
         await this.startBot(bot.id, bot.telegramToken, {
         syncpayApiKey: bot.syncpayApiKey,
         syncpayApiSecret: bot.syncpayApiSecret,

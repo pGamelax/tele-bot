@@ -19,12 +19,21 @@ const prisma = new PrismaClient();
 const botManager = BotManager.getInstance();
 
 // Inicializar bots ativos ao iniciar o servidor
+let botsInitialized = false;
 async function initializeBots() {
+  if (botsInitialized) {
+    console.log("⚠️  Bots já foram inicializados, pulando...");
+    return;
+  }
+  botsInitialized = true;
   try {
+    // Aguardar um pouco para garantir que o servidor está pronto
+    await new Promise(resolve => setTimeout(resolve, 2000));
     await botManager.restartAllBots();
     console.log("✅ Todos os bots ativos foram inicializados");
   } catch (error) {
     console.error("❌ Erro ao inicializar bots:", error);
+    botsInitialized = false; // Resetar em caso de erro para permitir nova tentativa
   }
 }
 
@@ -132,13 +141,12 @@ const app = new Elysia({
   .use(webhookRoutes)
   .use(trackingRoutes)
   .get("/", () => ({ message: "Tele Bot API" }))
-  .listen(process.env.PORT || 3000);
-
-// Inicializar bots após o servidor iniciar
-initializeBots();
-
-console.log(
-  `🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`
-);
+  .listen(process.env.PORT || 3000, () => {
+    console.log(
+      `🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`
+    );
+    // Inicializar bots após o servidor iniciar completamente
+    initializeBots();
+  });
 
 export type App = typeof app;
