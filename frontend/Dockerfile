@@ -1,11 +1,13 @@
-# Dockerfile para Frontend Next.js
-FROM node:20-alpine AS base
+# Dockerfile para Frontend Next.js com Bun
+FROM oven/bun:1 AS base
 
 # Instalar dependências
 FROM base AS deps
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+COPY frontend/package.json ./
+# Copiar lockfile se existir
+COPY frontend/bun.lockb* ./
+RUN bun install --frozen-lockfile
 
 # Build
 FROM base AS build
@@ -17,9 +19,9 @@ ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
-RUN npm run build
+RUN bun run build
 
-# Produção
+# Produção (Bun tem compatibilidade com Node.js, pode executar server.js)
 FROM base AS production
 WORKDIR /app
 
@@ -35,9 +37,9 @@ COPY --from=build /app/.next/static ./.next/static
 # Expor porta
 EXPOSE 3001
 
-# Health check
+# Health check (Bun pode executar código Node.js)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+  CMD bun -e "fetch('http://localhost:3001').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-# Iniciar servidor Next.js
-CMD ["node", "server.js"]
+# Iniciar servidor Next.js com Bun (Bun tem compatibilidade com Node.js)
+CMD ["bun", "run", "server.js"]

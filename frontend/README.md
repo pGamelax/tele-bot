@@ -16,7 +16,7 @@ Dashboard completo para gerenciamento de bots do Telegram, construído com Next.
 
 1. Instale as dependências:
 ```bash
-npm install
+bun install
 ```
 
 2. Configure as variáveis de ambiente:
@@ -32,7 +32,7 @@ NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
 
 3. Execute o servidor de desenvolvimento:
 ```bash
-npm run dev
+bun run dev
 ```
 
 O dashboard estará disponível em `http://localhost:3001` (ou a porta configurada).
