@@ -64,7 +64,6 @@ export class FacebookConversionsService {
         access_token: data.accessToken,
       };
 
-      console.log(`[Facebook Conversions] Enviando evento Purchase para Pixel ${data.pixelId}`);
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -87,10 +86,6 @@ export class FacebookConversionsService {
       const result = await response.json();
       
       if (result.events_received && result.events_received > 0) {
-        console.log(`[Facebook Conversions] Evento Purchase enviado com sucesso:`, {
-          events_received: result.events_received,
-          messages: result.messages,
-        });
         return true;
       } else {
         console.warn(`[Facebook Conversions] Evento não foi recebido:`, result);

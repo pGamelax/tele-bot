@@ -12,28 +12,14 @@ const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB para vídeos
 (async () => {
   if (!existsSync(UPLOAD_DIR)) {
     await mkdir(UPLOAD_DIR, { recursive: true });
-    console.log(`[Upload] Diretório de uploads criado: ${UPLOAD_DIR}`);
-  } else {
-    console.log(`[Upload] Diretório de uploads já existe: ${UPLOAD_DIR}`);
   }
 })();
 
 export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
   .post("/media", async ({ request, set }) => {
-    console.log(`[Upload] Requisição recebida em /api/upload/media`);
-    console.log(`[Upload] UPLOAD_DIR: ${UPLOAD_DIR}`);
-    console.log(`[Upload] Diretório existe: ${existsSync(UPLOAD_DIR)}`);
-    console.log(`[Upload] Content-Type: ${request.headers.get("content-type")}`);
-    console.log(`[Upload] Content-Length: ${request.headers.get("content-length")}`);
-    
     try {
-      // Elysia recebe FormData do request
-      console.log(`[Upload] Processando FormData...`);
       const formData = await request.formData();
-      console.log(`[Upload] FormData processado`);
-      
       const file = formData.get("file") as File | null;
-      console.log(`[Upload] Arquivo extraído: ${file ? `Sim (${file.name}, ${file.size} bytes, ${file.type})` : 'Não'}`);
 
       if (!file) {
         console.error(`[Upload] Nenhum arquivo encontrado no FormData`);
@@ -44,7 +30,6 @@ export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
       // Validar tipo de arquivo (imagem ou vídeo)
       const isImage = file.type.startsWith("image/");
       const isVideo = file.type.startsWith("video/");
-      console.log(`[Upload] Tipo detectado - Imagem: ${isImage}, Vídeo: ${isVideo}`);
 
       if (!isImage && !isVideo) {
         console.error(`[Upload] Tipo de arquivo inválido: ${file.type}`);
@@ -66,30 +51,19 @@ export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
       const extension = file.name.split(".").pop() || (isImage ? "jpg" : "mp4");
       const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}.${extension}`;
       const filePath = join(UPLOAD_DIR, fileName);
-      console.log(`[Upload] Caminho do arquivo: ${filePath}`);
 
       // Garantir que o diretório existe antes de salvar
       if (!existsSync(UPLOAD_DIR)) {
-        console.log(`[Upload] Criando diretório: ${UPLOAD_DIR}`);
         await mkdir(UPLOAD_DIR, { recursive: true });
       }
 
       // Salvar arquivo
-      console.log(`[Upload] Convertendo arquivo para buffer...`);
       const arrayBuffer = await file.arrayBuffer();
-      console.log(`[Upload] ArrayBuffer criado: ${arrayBuffer.byteLength} bytes`);
       const buffer = Buffer.from(arrayBuffer);
-      console.log(`[Upload] Buffer criado: ${buffer.length} bytes`);
-      
-      console.log(`[Upload] Salvando arquivo em: ${filePath}`);
       await writeFile(filePath, buffer);
-      console.log(`[Upload] Arquivo salvo com sucesso!`);
 
       // Verificar se o arquivo foi realmente salvo
-      if (existsSync(filePath)) {
-        const stats = await import("fs/promises").then(m => m.stat(filePath));
-        console.log(`[Upload] Arquivo confirmado no disco: ${stats.size} bytes`);
-      } else {
+      if (!existsSync(filePath)) {
         console.error(`[Upload] ERRO: Arquivo não foi encontrado após salvar!`);
       }
 
@@ -101,11 +75,6 @@ export const uploadRoutes = new Elysia({ prefix: "/api/upload" })
         return { error: "API_URL ou BETTER_AUTH_URL não configurado" };
       }
       const url = `${baseUrl}/uploads/${fileName}`;
-
-      console.log(`[Upload] Upload concluído com sucesso!`);
-      console.log(`[Upload] Arquivo: ${filePath}`);
-      console.log(`[Upload] URL: ${url}`);
-      console.log(`[Upload] Tipo: ${isImage ? "image" : "video"}`);
 
       return { url, fileName, type: isImage ? "image" : "video" };
     } catch (error: any) {

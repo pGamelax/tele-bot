@@ -5,6 +5,7 @@ import { TrackingStorage } from "./tracking-storage";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { scheduleResends, removeResendJobs } from "./resend-queue";
 
 const prisma = new PrismaClient();
 
@@ -25,9 +26,11 @@ interface BotConfig {
 export class BotManager {
   private static instance: BotManager;
   private bots: Map<string, Bot> = new Map();
+  // Armazenar configurações dos bots para acesso posterior
+  private botConfigs: Map<string, BotConfig> = new Map();
   // Usar caminho absoluto para garantir que funciona no Docker
   private UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
-  // Armazenar timers de reenvio por botId e chatId
+  // Armazenar timers de reenvio por botId e chatId (mantido para compatibilidade, mas será substituído por BullMQ)
   private resendTimers: Map<string, Map<string, NodeJS.Timeout>> = new Map();
 
   private constructor() {}
@@ -46,23 +49,17 @@ export class BotManager {
 
   // Helper para converter URL local em InputFile
   private async getMediaInput(mediaUrl: string): Promise<string | InputFile> {
-    console.log(`[BotManager] getMediaInput chamado com URL: ${mediaUrl}`);
-    
     // Verificar se é uma URL que aponta para nosso servidor (localhost, 127.0.0.1, ou nosso domínio)
     const apiUrl = process.env.API_URL || process.env.BETTER_AUTH_URL || "";
     let isLocalUrl = mediaUrl.includes("localhost") || 
                      mediaUrl.includes("127.0.0.1") || 
                      (mediaUrl.startsWith("/uploads/") && !mediaUrl.startsWith("http"));
     
-    console.log(`[BotManager] API_URL: ${apiUrl}`);
-    console.log(`[BotManager] isLocalUrl inicial: ${isLocalUrl}`);
-    
     // Verificar se a URL contém o hostname do nosso servidor
     if (apiUrl && !isLocalUrl) {
       try {
         const apiHostname = new URL(apiUrl).hostname;
         isLocalUrl = mediaUrl.includes(apiHostname);
-        console.log(`[BotManager] Verificando hostname ${apiHostname}: ${isLocalUrl}`);
       } catch (e) {
         console.warn(`[BotManager] Erro ao parsear API_URL:`, e);
       }
@@ -79,24 +76,16 @@ export class BotManager {
         fileName = mediaUrl.replace("/uploads/", "").split("?")[0];
       }
       
-      console.log(`[BotManager] Nome do arquivo extraído: ${fileName}`);
-      
       if (fileName) {
         const filePath = join(this.UPLOAD_DIR, fileName);
-        console.log(`[BotManager] UPLOAD_DIR: ${this.UPLOAD_DIR}`);
-        console.log(`[BotManager] process.cwd(): ${process.cwd()}`);
-        console.log(`[BotManager] Tentando ler arquivo: ${filePath}`);
-        console.log(`[BotManager] Arquivo existe: ${existsSync(filePath)}`);
         
         // Tentar caminhos alternativos se o arquivo não for encontrado
         if (!existsSync(filePath)) {
           // Tentar caminho relativo
           const relativePath = join(process.cwd(), "uploads", fileName);
-          console.log(`[BotManager] Tentando caminho relativo: ${relativePath}`);
           if (existsSync(relativePath)) {
             try {
               const fileBuffer = await readFile(relativePath);
-              console.log(`[BotManager] Arquivo lido do caminho relativo: ${relativePath} (${fileBuffer.length} bytes)`);
               return new InputFile(fileBuffer, fileName);
             } catch (error) {
               console.error(`[BotManager] Erro ao ler arquivo ${relativePath}:`, error);
@@ -105,11 +94,9 @@ export class BotManager {
           
           // Tentar caminho absoluto do Docker
           const dockerPath = join("/app/backend/uploads", fileName);
-          console.log(`[BotManager] Tentando caminho Docker: ${dockerPath}`);
           if (existsSync(dockerPath)) {
             try {
               const fileBuffer = await readFile(dockerPath);
-              console.log(`[BotManager] Arquivo lido do caminho Docker: ${dockerPath} (${fileBuffer.length} bytes)`);
               return new InputFile(fileBuffer, fileName);
             } catch (error) {
               console.error(`[BotManager] Erro ao ler arquivo ${dockerPath}:`, error);
@@ -118,7 +105,6 @@ export class BotManager {
         } else {
           try {
             const fileBuffer = await readFile(filePath);
-            console.log(`[BotManager] Arquivo lido com sucesso: ${filePath} (${fileBuffer.length} bytes)`);
             return new InputFile(fileBuffer, fileName);
           } catch (error) {
             console.error(`[BotManager] Erro ao ler arquivo ${filePath}:`, error);
@@ -132,31 +118,25 @@ export class BotManager {
     // Fallback: tentar baixar a URL se for do nosso servidor
     if (isLocalUrl && apiUrl) {
       try {
-        console.log(`[BotManager] Tentando baixar arquivo da URL: ${mediaUrl}`);
+        // Extrair nome do arquivo antes do fetch
+        const fileName = mediaUrl.split("/").pop()?.split("?")[0] || "image.jpg";
+        
         // Usar URL interna do container para evitar problemas de rede
         const internalUrl = mediaUrl.replace(new URL(apiUrl).origin, `http://localhost:${process.env.PORT || 3000}`);
-        console.log(`[BotManager] Tentando URL interna: ${internalUrl}`);
         const response = await fetch(internalUrl);
-        console.log(`[BotManager] Resposta do fetch: ${response.status} ${response.statusText}`);
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
-          const fileName = mediaUrl.split("/").pop()?.split("?")[0] || "image.jpg";
-          console.log(`[BotManager] Arquivo baixado com sucesso: ${fileName} (${arrayBuffer.byteLength} bytes)`);
           return new InputFile(Buffer.from(arrayBuffer), fileName);
         } else {
           console.error(`[BotManager] ERRO: Falha ao baixar arquivo: ${response.status} ${response.statusText}`);
           // Se não conseguir baixar, tentar ler do sistema de arquivos novamente com caminho absoluto
-          if (fileName) {
-            const absolutePath = join(this.UPLOAD_DIR, fileName);
-            console.log(`[BotManager] Tentando ler arquivo novamente com caminho absoluto: ${absolutePath}`);
-            if (existsSync(absolutePath)) {
-              try {
-                const fileBuffer = await readFile(absolutePath);
-                console.log(`[BotManager] Arquivo lido do sistema de arquivos: ${absolutePath} (${fileBuffer.length} bytes)`);
-                return new InputFile(fileBuffer, fileName);
-              } catch (error) {
-                console.error(`[BotManager] Erro ao ler arquivo ${absolutePath}:`, error);
-              }
+          const absolutePath = join(this.UPLOAD_DIR, fileName);
+          if (existsSync(absolutePath)) {
+            try {
+              const fileBuffer = await readFile(absolutePath);
+              return new InputFile(fileBuffer, fileName);
+            } catch (error) {
+              console.error(`[BotManager] Erro ao ler arquivo ${absolutePath}:`, error);
             }
           }
           throw new Error(`Arquivo não encontrado: ${mediaUrl}`);
@@ -169,7 +149,6 @@ export class BotManager {
     }
     
     // Se não for URL local, retornar URL diretamente (Telegram tentará baixar)
-    console.log(`[BotManager] Retornando URL externa diretamente: ${mediaUrl}`);
     return mediaUrl;
   }
 
@@ -215,7 +194,6 @@ export class BotManager {
             },
           ]),
         };
-        console.log(`[Bot ${botId}] Enviando mensagem /start com ${config.paymentButtons.length} botões de pagamento`);
       } else {
         console.warn(`[Bot ${botId}] Nenhum botão de pagamento configurado para /start`);
       }
@@ -282,7 +260,6 @@ export class BotManager {
             },
           ]),
         };
-        console.log(`[Bot ${botId}] Enviando mensagem de reenvio com ${buttonsToUse.length} botões de pagamento`);
       } else {
         console.warn(`[Bot ${botId}] Nenhum botão de pagamento configurado para reenvio`);
       }
@@ -345,85 +322,31 @@ export class BotManager {
       return !!paidPayment;
     };
 
-    // Função para iniciar reenvios automáticos
+    // Função para iniciar reenvios automáticos usando BullMQ
     const startResendSchedule = async (chatId: string) => {
-      console.log(`[BotManager] Iniciando agendamento de reenvio para bot ${botId}, chat ${chatId}`);
       
-      // Limpar timers existentes para este chat
-      this.stopResendSchedule(botId, chatId);
+      // Limpar jobs existentes para este chat
+      await this.stopResendSchedule(botId, chatId);
 
-      const firstDelay = (config.resendFirstDelay || 20) * 60 * 1000; // Converter minutos para ms
-      const interval = (config.resendInterval || 10) * 60 * 1000; // Converter minutos para ms
+      // Verificar se o lead está pausado
+      const lead = await prisma.lead.findFirst({
+        where: {
+          botId,
+          telegramChatId: chatId,
+        },
+      });
 
-      console.log(`[BotManager] Configuração de reenvio - Primeiro delay: ${config.resendFirstDelay || 20} minutos (${firstDelay}ms), Intervalo: ${config.resendInterval || 10} minutos (${interval}ms)`);
-
-      // Primeira mensagem após o delay configurado
-      const firstTimer = setTimeout(async () => {
-        try {
-          console.log(`[BotManager] Executando primeiro reenvio para bot ${botId}, chat ${chatId}`);
-          
-          // Verificar se o usuário já comprou
-          const hasPurchased = await hasUserPurchased(chatId);
-          if (hasPurchased) {
-            console.log(`[BotManager] Usuário ${chatId} já comprou, parando reenvios`);
-            this.stopResendSchedule(botId, chatId);
-            return;
-          }
-
-          // Enviar mensagem de reenvio
-          console.log(`[BotManager] Enviando primeira mensagem de reenvio para chat ${chatId}`);
-          await sendResendMessage(chatId);
-          console.log(`[BotManager] Primeira mensagem de reenvio enviada com sucesso para chat ${chatId}`);
-
-          // Iniciar reenvios no intervalo configurado
-          const recurringTimer = setInterval(async () => {
-            try {
-              console.log(`[BotManager] Executando reenvio recorrente para bot ${botId}, chat ${chatId}`);
-              
-              // Verificar se o usuário já comprou
-              const hasPurchased = await hasUserPurchased(chatId);
-              if (hasPurchased) {
-                console.log(`[BotManager] Usuário ${chatId} já comprou, parando reenvios recorrentes`);
-                this.stopResendSchedule(botId, chatId);
-                return;
-              }
-
-              // Verificar se o bot ainda existe
-              const bot = this.bots.get(botId);
-              if (!bot) {
-                console.warn(`[BotManager] Bot ${botId} não encontrado, parando reenvios`);
-                clearInterval(recurringTimer);
-                return;
-              }
-
-              // Enviar mensagem de reenvio
-              console.log(`[BotManager] Enviando mensagem de reenvio recorrente para chat ${chatId}`);
-              await sendResendMessage(chatId);
-              console.log(`[BotManager] Mensagem de reenvio recorrente enviada com sucesso para chat ${chatId}`);
-            } catch (error) {
-              console.error(`[BotManager] Erro ao reenviar mensagem para chat ${chatId}:`, error);
-              console.error(`[BotManager] Stack trace:`, (error as Error).stack);
-            }
-          }, interval);
-
-          // Armazenar timer de reenvio recorrente
-          if (!this.resendTimers.has(botId)) {
-            this.resendTimers.set(botId, new Map());
-          }
-          this.resendTimers.get(botId)!.set(chatId, recurringTimer);
-          console.log(`[BotManager] Timer de reenvio recorrente armazenado para bot ${botId}, chat ${chatId}`);
-        } catch (error) {
-          console.error(`[BotManager] Erro no primeiro reenvio para chat ${chatId}:`, error);
-          console.error(`[BotManager] Stack trace:`, (error as Error).stack);
-        }
-      }, firstDelay);
-
-      // Armazenar timer da primeira mensagem
-      if (!this.resendTimers.has(botId)) {
-        this.resendTimers.set(botId, new Map());
+      if ((lead as any)?.resendPaused) {
+        return;
       }
-      this.resendTimers.get(botId)!.set(`${chatId}_first`, firstTimer);
-      console.log(`[BotManager] Timer da primeira mensagem armazenado para bot ${botId}, chat ${chatId} (será executado em ${firstDelay}ms)`);
+
+      // Agendar reenvios usando BullMQ
+      await scheduleResends(
+        botId,
+        chatId,
+        config.resendFirstDelay || 20,
+        config.resendInterval || 10
+      );
     };
 
     // Função para extrair parâmetros de rastreamento do comando /start
@@ -446,7 +369,6 @@ export class BotManager {
       const storedParams = trackingStorage.retrieve(startParam);
       
       if (storedParams) {
-        console.log(`[BotManager] Parâmetros recuperados do TrackingStorage para token: ${startParam}`);
         return storedParams;
       }
 
@@ -564,10 +486,8 @@ export class BotManager {
               if (trackingParams.ref !== undefined) {
                 updateData.ref = trackingParams.ref;
               }
-              console.log(`[BotManager] Atualizando parâmetros de tracking do lead ${existingLead.id} (vindo de anúncio)`);
             } else {
               // Sem parâmetros de tracking - preservar dados antigos
-              console.log(`[BotManager] Preservando parâmetros de tracking antigos do lead ${existingLead.id} (sem parâmetros no /start)`);
             }
 
             await prisma.lead.update({
@@ -594,7 +514,6 @@ export class BotManager {
                 ref: trackingParams.ref,
               },
             });
-            console.log(`[BotManager] Novo lead criado com parâmetros de tracking:`, hasTrackingParams ? 'Sim' : 'Não');
           }
         } catch (leadError) {
           console.error(`Erro ao criar/atualizar lead:`, leadError);
@@ -711,7 +630,6 @@ export class BotManager {
     try {
       bot.start();
       this.bots.set(botId, bot);
-      console.log(`Bot ${botId} iniciado com sucesso`);
     } catch (error: any) {
       console.error(`[Bot ${botId}] Erro ao iniciar bot:`, error);
       // Não lançar o erro para não quebrar o fluxo, mas logar
@@ -719,34 +637,102 @@ export class BotManager {
   }
 
   // Parar reenvios para um chat específico
-  stopResendSchedule(botId: string, chatId: string) {
-    console.log(`[BotManager] Parando reenvios para bot ${botId}, chat ${chatId}`);
+  async stopResendSchedule(botId: string, chatId: string) {
+    
+    // Remover jobs do BullMQ
+    await removeResendJobs(botId, chatId);
+    
+    // Limpar timers antigos (compatibilidade)
     const botTimers = this.resendTimers.get(botId);
-    if (!botTimers) {
-      console.log(`[BotManager] Nenhum timer encontrado para bot ${botId}`);
-      return;
+    if (botTimers) {
+      const firstTimer = botTimers.get(`${chatId}_first`);
+      if (firstTimer) {
+        clearTimeout(firstTimer);
+        botTimers.delete(`${chatId}_first`);
+      }
+
+      const recurringTimer = botTimers.get(chatId);
+      if (recurringTimer) {
+        clearInterval(recurringTimer);
+        botTimers.delete(chatId);
+      }
+
+      if (botTimers.size === 0) {
+        this.resendTimers.delete(botId);
+      }
+    }
+  }
+
+  // Método público para enviar mensagem de reenvio (usado pelo BullMQ worker)
+  async sendResendMessage(botId: string, chatId: string) {
+    const config = this.botConfigs.get(botId);
+    if (!config) {
+      throw new Error(`Configuração do bot ${botId} não encontrada`);
     }
 
-    // Limpar timer da primeira mensagem
-    const firstTimer = botTimers.get(`${chatId}_first`);
-    if (firstTimer) {
-      clearTimeout(firstTimer);
-      botTimers.delete(`${chatId}_first`);
-      console.log(`[BotManager] Timer da primeira mensagem removido para bot ${botId}, chat ${chatId}`);
+    const bot = this.bots.get(botId);
+    if (!bot) {
+      throw new Error(`Bot ${botId} não encontrado`);
     }
 
-    // Limpar timer de reenvios recorrentes
-    const recurringTimer = botTimers.get(chatId);
-    if (recurringTimer) {
-      clearInterval(recurringTimer);
-      botTimers.delete(chatId);
-      console.log(`[BotManager] Timer de reenvio recorrente removido para bot ${botId}, chat ${chatId}`);
+    // Criar keyboard com botões de pagamento
+    let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
+    const buttonsToUse = config.resendPaymentButtons && config.resendPaymentButtons.length > 0 
+      ? config.resendPaymentButtons 
+      : config.paymentButtons;
+    
+    if (buttonsToUse && buttonsToUse.length > 0) {
+      keyboard = {
+        inline_keyboard: buttonsToUse.map((btn) => [
+          {
+            text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
+            callback_data: `payment_${btn.value}`,
+          },
+        ]),
+      };
     }
 
-    // Se não houver mais timers para este bot, remover o Map
-    if (botTimers.size === 0) {
-      this.resendTimers.delete(botId);
-      console.log(`[BotManager] Todos os timers removidos para bot ${botId}`);
+    // Usar mídia e caption de reenvio se configurado, senão usar os de start
+    const mediaUrl = config.resendImage || config.startImage;
+    const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    if (mediaUrl) {
+      try {
+        const isVideo = this.isVideoUrl(mediaUrl);
+        const media = await this.getMediaInput(mediaUrl);
+        
+        if (typeof media === 'string' && (media.includes('bot-backend.clashdata.pro') || media.includes('localhost'))) {
+          await bot.api.sendMessage(parseInt(chatId), captionText, {
+            reply_markup: keyboard,
+            parse_mode: undefined,
+          });
+        } else {
+          if (isVideo) {
+            await bot.api.sendVideo(parseInt(chatId), media, {
+              caption: captionText,
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          } else {
+            await bot.api.sendPhoto(parseInt(chatId), media, {
+              caption: captionText,
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`[BotManager] Erro ao enviar mídia no reenvio, enviando apenas texto:`, error);
+        await bot.api.sendMessage(parseInt(chatId), captionText, {
+          reply_markup: keyboard,
+          parse_mode: undefined,
+        });
+      }
+    } else {
+      await bot.api.sendMessage(parseInt(chatId), captionText, {
+        reply_markup: keyboard,
+        parse_mode: undefined,
+      });
     }
   }
 
@@ -776,7 +762,6 @@ export class BotManager {
           this.resendTimers.delete(botId);
         }
         
-        console.log(`Bot ${botId} parado`);
       }
     }
   }
@@ -868,7 +853,6 @@ export class BotManager {
       include: { paymentButtons: true },
     });
 
-    console.log(`[BotManager] Reiniciando ${activeBots.length} bot(s) ativo(s)...`);
 
     // Parar todos os bots primeiro
     for (const bot of activeBots) {
@@ -876,14 +860,12 @@ export class BotManager {
     }
     
     // Aguardar mais tempo antes de reiniciar todos para garantir que todos foram parados
-    console.log(`[BotManager] Aguardando 10 segundos antes de reiniciar bots...`);
     await new Promise(resolve => setTimeout(resolve, 10000));
 
     // Iniciar bots com delay entre cada um para evitar conflitos
     for (let i = 0; i < activeBots.length; i++) {
       const bot = activeBots[i];
       try {
-        console.log(`[BotManager] Iniciando bot ${i + 1}/${activeBots.length} (${bot.id})...`);
         await this.startBot(bot.id, bot.telegramToken, {
         syncpayApiKey: bot.syncpayApiKey,
         syncpayApiSecret: bot.syncpayApiSecret,

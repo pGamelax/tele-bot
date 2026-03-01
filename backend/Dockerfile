@@ -42,6 +42,10 @@ COPY backend/start.sh ./start.sh
 COPY backend/healthcheck.sh ./healthcheck.sh
 RUN chmod +x ./start.sh ./healthcheck.sh
 
+# Variáveis de ambiente padrão
+ENV NODE_ENV=production
+ENV PORT=3000
+
 # Expor porta
 EXPOSE 3000
 

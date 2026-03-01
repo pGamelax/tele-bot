@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "bullmq": "^5.70.1",
+    "ioredis": "^5.10.0"
+  }
+}

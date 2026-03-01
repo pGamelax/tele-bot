@@ -149,6 +149,7 @@ model Lead {
   notes           String?  // Notas sobre o lead
   contactedAt     DateTime? // Quando foi contatado
   convertedAt     DateTime? // Quando se tornou cliente (comprou)
+  resendPaused    Boolean  @default(false) // Se o reenvio está pausado manualmente
   // Rastreamento Facebook Ads / UTM
   utmSource       String?  // utm_source (ex: facebook, google)
   utmMedium       String?  // utm_medium (ex: cpc, social)

@@ -46,7 +46,6 @@ export class TrackingStorage {
       expiresAt,
     });
 
-    console.log(`[TrackingStorage] Parâmetros armazenados para token: ${token}`);
     return token;
   }
 
@@ -57,12 +56,10 @@ export class TrackingStorage {
     const data = this.storage.get(token);
 
     if (!data) {
-      console.log(`[TrackingStorage] Token não encontrado: ${token}`);
       return null;
     }
 
     if (Date.now() > data.expiresAt) {
-      console.log(`[TrackingStorage] Token expirado: ${token}`);
       this.storage.delete(token);
       return null;
     }
@@ -71,7 +68,6 @@ export class TrackingStorage {
     this.storage.delete(token);
 
     const { expiresAt, ...params } = data;
-    console.log(`[TrackingStorage] Parâmetros recuperados para token: ${token}`, params);
     return params;
   }
 
@@ -97,7 +93,6 @@ export class TrackingStorage {
     }
 
     if (cleaned > 0) {
-      console.log(`[TrackingStorage] Limpeza: ${cleaned} tokens expirados removidos`);
     }
   }
 

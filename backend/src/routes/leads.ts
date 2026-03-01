@@ -1,8 +1,11 @@
 import { Elysia } from "elysia";
 import { PrismaClient } from "@prisma/client";
 import { auth } from "../lib/auth";
+import { BotManager } from "../services/bot-manager";
+import { scheduleResends, removeResendJobs } from "../services/resend-queue";
 
 const prisma = new PrismaClient();
+const botManager = BotManager.getInstance();
 
 export const leadRoutes = new Elysia({ prefix: "/api/leads" })
   .derive(async ({ request }) => {
@@ -271,5 +274,87 @@ export const leadRoutes = new Elysia({ prefix: "/api/leads" })
     } catch (error: any) {
       set.status = 500;
       return { error: error.message || "Erro ao deletar lead" };
+    }
+  })
+  .patch("/:id/resend", async ({ user, params, body, set }) => {
+    try {
+      if (!user) {
+        set.status = 401;
+        return { error: "Não autorizado" };
+      }
+
+      const { paused } = body as { paused: boolean };
+
+      // Verificar se o lead pertence a um bot do usuário
+      const lead = await prisma.lead.findUnique({
+        where: { id: params.id },
+        include: {
+          bot: {
+            select: {
+              userId: true,
+              id: true,
+              isActive: true,
+              resendFirstDelay: true,
+              resendInterval: true,
+            },
+          },
+        },
+      });
+
+      if (!lead) {
+        set.status = 404;
+        return { error: "Lead não encontrado" };
+      }
+
+      if (lead.bot.userId !== user.id) {
+        set.status = 403;
+        return { error: "Acesso negado" };
+      }
+
+      // Verificar se o usuário já comprou neste bot
+      const paidPayment = await prisma.payment.findFirst({
+        where: {
+          botId: lead.botId,
+          telegramChatId: lead.telegramChatId,
+          status: "paid",
+        },
+      });
+
+      if (paidPayment) {
+        set.status = 400;
+        return { error: "Não é possível pausar/retomar reenvios para um lead que já comprou" };
+      }
+
+      // Atualizar status de pausa
+      const updatedLead = await prisma.lead.update({
+        where: { id: params.id },
+        data: { resendPaused: paused },
+        include: {
+          bot: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      // Se retomando e o bot está ativo, agendar reenvios
+      if (!paused && lead.bot.isActive && !paidPayment) {
+        await scheduleResends(
+          lead.botId,
+          lead.telegramChatId,
+          lead.bot.resendFirstDelay || 20,
+          lead.bot.resendInterval || 10
+        );
+      } else if (paused) {
+        // Se pausando, remover jobs
+        await removeResendJobs(lead.botId, lead.telegramChatId);
+      }
+
+      return { lead: updatedLead };
+    } catch (error: any) {
+      set.status = 500;
+      return { error: error.message || "Erro ao atualizar status de reenvio" };
     }
   });

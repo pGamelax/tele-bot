@@ -89,8 +89,6 @@ export const trackingRoutes = new Elysia({ prefix: "/api/tracking" })
       // Gerar link do Telegram com token
       const telegramUrl = `https://t.me/${botUsername}?start=${token}`;
 
-      console.log(`[Tracking] Link gerado para bot ${botId}: ${telegramUrl}`);
-      console.log(`[Tracking] Parâmetros capturados:`, trackingParams);
 
       return {
         telegramUrl,
@@ -148,7 +146,6 @@ export const trackingRoutes = new Elysia({ prefix: "/api/tracking" })
 
       // Redirecionar diretamente para o Telegram
       const telegramUrl = `https://t.me/${botUsername}?start=${token}`;
-      console.log(`[Tracking] Redirecionando para: ${telegramUrl}`);
       
       // Elysia não tem set.redirect, usar headers e status manualmente
       set.headers["Location"] = telegramUrl;

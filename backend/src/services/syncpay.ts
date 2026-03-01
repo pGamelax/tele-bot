@@ -17,7 +17,6 @@ export class SyncPayService {
     this.apiSecret = apiSecret;
     // Verificar se a URL está configurada, caso contrário usar a padrão
     this.apiUrl = process.env.SYNCPAY_API_URL || "https://api.syncpay.com.br";
-    console.log(`[SyncPay] API URL configurada: ${this.apiUrl}`);
   }
 
   // Gerar token de autenticação
@@ -30,7 +29,6 @@ export class SyncPayService {
 
       const endpoint = `${this.apiUrl}/api/partner/v1/auth-token`;
       
-      console.log(`[SyncPay] Tentando conectar em: ${endpoint}`);
       
       // Criar um AbortController para timeout
       const controller = new AbortController();
@@ -77,7 +75,6 @@ export class SyncPayService {
           this.tokenExpiresAt = Date.now() + (expiresIn * 1000) - 60000; // 1 minuto de margem
         }
 
-        console.log(`[SyncPay] Token gerado com sucesso`);
         return this.accessToken;
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
@@ -166,10 +163,6 @@ export class SyncPayService {
 
       const endpoint = `${this.apiUrl}/api/partner/v1/cash-in`;
 
-      console.log(`[SyncPay] Criando PIX: ${endpoint}`, { 
-        amount: amountInReais,
-        body: JSON.stringify(body, null, 2),
-      });
 
       // Criar um AbortController para timeout na criação de PIX
       const pixController = new AbortController();
@@ -225,11 +218,6 @@ export class SyncPayService {
 
       const data = await response.json();
 
-      console.log(`[SyncPay] PIX criado com sucesso:`, {
-        identifier: data.identifier,
-        pix_code_length: data.pix_code?.length,
-        message: data.message,
-      });
 
       // Validar resposta conforme formato da API
       if (!data.identifier || !data.pix_code) {

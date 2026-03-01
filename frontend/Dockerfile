@@ -1,41 +1,43 @@
-# Dockerfile para Frontend
+# Dockerfile para Frontend Next.js
 FROM node:20-alpine AS base
 
 # Instalar dependências
 FROM base AS deps
 WORKDIR /app
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
 
 # Build
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend ./
-# Variáveis de ambiente são necessárias no build time para Vite
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+# Variáveis de ambiente são necessárias no build time para Next.js
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_BETTER_AUTH_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
 RUN npm run build
 
-# Produção - servir arquivos estáticos com serve
-FROM node:20-alpine AS production
+# Produção
+FROM base AS production
 WORKDIR /app
 
-# Instalar serve globalmente
-RUN npm install -g serve
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV HOSTNAME="0.0.0.0"
 
-# Copiar arquivos buildados
-COPY --from=build /app/dist ./dist
+# Copiar apenas arquivos necessários
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
 
-# Expor porta (usar variável de ambiente PORT ou padrão 3000)
-EXPOSE 3000
+# Expor porta
+EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "const port = process.env.PORT || 3000; const url = 'http://localhost:' + port; require('http').get(url, (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:3001', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
-# Servir arquivos estáticos
-# -s: modo single-page application (fallback para index.html)
-# -l: porta para escutar (usa PORT do ambiente ou 3000)
-# --no-clipboard: não tentar copiar URL
-CMD sh -c "serve -s dist -l ${PORT:-3000} --no-clipboard"
+# Iniciar servidor Next.js
+CMD ["node", "server.js"]

@@ -10,9 +10,6 @@ const facebookConversions = new FacebookConversionsService();
 export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
   .post("/syncpay", async ({ body, headers, set }) => {
     try {
-      // Log da requisição recebida
-      console.log("[Webhook SyncPay] Notificação recebida:", JSON.stringify(body, null, 2));
-      console.log("[Webhook SyncPay] Headers:", JSON.stringify(headers, null, 2));
 
       // Formato da SyncPay conforme documentação:
       // Header: event = "cashin.update" ou "cashin.create"
@@ -25,7 +22,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
       const status = data.status;
       const statusUpper = (status || "").toUpperCase();
       
-      console.log(`[Webhook SyncPay] Evento recebido: ${event || "NENHUM"}, status: ${status}`);
 
       // Ignorar cashin.create apenas se o status não for de pagamento confirmado
       // Se o status for PAID_OUT ou similar, processar mesmo que seja cashin.create
@@ -40,7 +36,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
       
       if (event && event === "cashin.create" && !isPaidStatus) {
         // Ignorar cashin.create apenas se não for um status de pagamento confirmado
-        console.log(`[Webhook SyncPay] Evento cashin.create ignorado (status: ${status} - não é pagamento confirmado)`);
         set.status = 200;
         return { message: "Evento ignorado - pagamento ainda não confirmado" };
       }
@@ -54,36 +49,24 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
       const identifier = data.id || data.idtransaction || data.identifier;
       const externalReference = data.externalreference;
       
-      console.log(`[Webhook SyncPay] Processando evento ${event || "SEM_EVENTO"}, identifier: ${identifier}, externalReference: ${externalReference}, status: ${status}`);
-
       // Buscar pagamento pelo syncpayId (identifier)
-      console.log(`[Webhook SyncPay] Buscando pagamento com syncpayId: ${identifier}`);
       let payment = await prisma.payment.findFirst({
         where: {
           syncpayId: identifier,
         },
       });
 
-      if (payment) {
-        console.log(`[Webhook SyncPay] Pagamento encontrado pelo syncpayId: ${payment.id}`);
-      }
-
       // Se não encontrou, tentar buscar por idtransaction
       if (!payment && data.idtransaction && data.idtransaction !== identifier) {
-        console.log(`[Webhook SyncPay] Tentando buscar por idtransaction: ${data.idtransaction}`);
         payment = await prisma.payment.findFirst({
           where: {
             syncpayId: data.idtransaction,
           },
         });
-        if (payment) {
-          console.log(`[Webhook SyncPay] Pagamento encontrado pelo idtransaction: ${payment.id}`);
-        }
       }
 
       // Se ainda não encontrou, tentar buscar pelo externalreference (que pode ser o ID do pagamento)
       if (!payment && externalReference) {
-        console.log(`[Webhook SyncPay] Tentando buscar por externalReference: ${externalReference}`);
         // externalReference pode ser o ID do pagamento no nosso banco
         try {
           payment = await prisma.payment.findUnique({
@@ -93,24 +76,15 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
           });
         } catch (e) {
           // Se não for um ID válido, ignorar
-          console.log(`[Webhook SyncPay] externalReference não é um ID válido: ${externalReference}`);
         }
       }
 
       if (!payment) {
         console.warn(`[Webhook SyncPay] Pagamento não encontrado para identifier: ${identifier}, externalReference: ${externalReference}`);
-        console.warn(`[Webhook SyncPay] Tentando listar últimos pagamentos para debug...`);
-        const recentPayments = await prisma.payment.findMany({
-          take: 5,
-          orderBy: { createdAt: "desc" },
-          select: { id: true, syncpayId: true, status: true, telegramChatId: true },
-        });
-        console.warn(`[Webhook SyncPay] Últimos 5 pagamentos:`, recentPayments);
         set.status = 404;
         return { error: "Pagamento não encontrado", identifier, externalReference };
       }
 
-      console.log(`[Webhook SyncPay] Pagamento encontrado: ${payment.id}, status atual: ${payment.status}, chatId: ${payment.telegramChatId}`);
 
       // Mapear status da SyncPay para nosso formato
       // Status possíveis: PAID_OUT, WAITING_FOR_APPROVAL, APPROVED, PAID, EXPIRED, CANCELLED, etc.
@@ -149,7 +123,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
         newStatus = "pending";
       }
       
-      console.log(`[Webhook SyncPay] Status recebido: ${status} -> Mapeado para: ${newStatus}`);
 
       // Atualizar status do pagamento (mesmo se já estiver como paid, para garantir que tudo seja processado)
       const shouldUpdate = payment.status !== newStatus;
@@ -163,12 +136,9 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
             paidAt: isPaid ? new Date() : payment.paidAt,
           },
         });
-        console.log(`[Webhook SyncPay] Pagamento ${payment.id} atualizado para status: ${newStatus}`);
       } else if (isPaid) {
         // Se já está como paid, processar mesmo assim para garantir que mensagem e lead sejam atualizados
-        console.log(`[Webhook SyncPay] Status já está como ${newStatus} para payment ${payment.id}, mas processando ações...`);
       } else {
-        console.log(`[Webhook SyncPay] Status já está como ${newStatus} para payment ${payment.id}`);
         set.status = 200;
         return { message: "Status já atualizado", paymentId: payment.id, status: newStatus };
       }
@@ -202,20 +172,12 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               convertedAt: new Date(),
             },
           });
-          console.log(`[Webhook SyncPay] Lead ${lead.id} marcado como convertido`);
-          console.log(`[Webhook SyncPay] Parâmetros de tracking do lead:`, {
-            fbclid: lead.fbclid,
-            utmSource: lead.utmSource,
-            utmCampaign: lead.utmCampaign,
-            utmMedium: lead.utmMedium,
-          });
         } else {
           console.warn(`[Webhook SyncPay] Lead não encontrado para bot ${payment.botId} e chat ${payment.telegramChatId}`);
         }
 
         // Parar reenvios para este chat
-        botManager.stopResendSchedule(payment.botId, payment.telegramChatId);
-        console.log(`[Webhook SyncPay] Reenvios parados para chat ${payment.telegramChatId}`);
+        await botManager.stopResendSchedule(payment.botId, payment.telegramChatId);
 
         // Enviar evento para Facebook Conversions API
         try {
@@ -241,18 +203,10 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               lead?.fbclid || undefined,
               eventTime
             );
-            console.log(`[Webhook SyncPay] Evento Purchase enviado para Facebook Pixel ${bot.facebookPixelId}`, {
-              amount: amountInReais,
-              fbclid: lead?.fbclid || "não disponível",
-              utmCampaign: lead?.utmCampaign || "não disponível",
-              eventTime,
-            });
           } else {
             if (!bot?.facebookPixelId) {
-              console.log(`[Webhook SyncPay] Facebook Pixel ID não configurado para bot ${payment.botId}`);
             }
             if (!bot?.facebookAccessToken) {
-              console.log(`[Webhook SyncPay] Facebook Access Token não configurado para bot ${payment.botId}`);
             }
           }
         } catch (facebookError: any) {
@@ -286,7 +240,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               normalizedMessage
             );
             
-            console.log(`[Webhook SyncPay] Notificação enviada para chat ${payment.telegramChatId}`);
           }
         } catch (telegramError: any) {
           console.error("[Webhook SyncPay] Erro ao enviar notificação no Telegram:", {
