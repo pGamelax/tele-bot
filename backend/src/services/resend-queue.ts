@@ -101,16 +101,21 @@ export const resendWorker = new Worker(
       const botManager = await getBotManager();
       try {
         await botManager.sendResendMessage(botId, chatId);
+        console.log(`[ResendQueue] Mensagem de reenvio enviada com sucesso para bot ${botId}, chat ${chatId}`);
+        return { success: true };
       } catch (error: any) {
         // Se o bot não existe mais no BotManager, remover jobs
-        if (error.message?.includes("não encontrada") || error.message?.includes("não encontrado")) {
+        if (error.message?.includes("não encontrada") || error.message?.includes("não encontrado") || error.message?.includes("não encontrado")) {
+          console.warn(`[ResendQueue] Bot ou configuração não encontrada para bot ${botId}, removendo jobs`);
           await removeResendJobs(botId, chatId);
           return { success: false, reason: "bot_not_found" };
         }
-        throw error;
+        // Logar o erro mas não falhar o job completamente - pode ser um problema temporário
+        console.error(`[ResendQueue] Erro ao enviar mensagem de reenvio para bot ${botId}, chat ${chatId}:`, error?.message || error);
+        // Não relançar o erro para não marcar o job como falho permanentemente
+        // O job será tentado novamente nas próximas tentativas
+        return { success: false, reason: "send_error", error: error?.message || String(error) };
       }
-
-      return { success: true };
     } catch (error) {
       console.error(`[ResendQueue] Erro ao processar reenvio:`, error);
       throw error;

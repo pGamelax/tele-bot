@@ -665,74 +665,144 @@ export class BotManager {
 
   // Método público para enviar mensagem de reenvio (usado pelo BullMQ worker)
   async sendResendMessage(botId: string, chatId: string) {
-    const config = this.botConfigs.get(botId);
-    if (!config) {
-      throw new Error(`Configuração do bot ${botId} não encontrada`);
-    }
+    try {
+      const config = this.botConfigs.get(botId);
+      if (!config) {
+        throw new Error(`Configuração do bot ${botId} não encontrada`);
+      }
 
-    const bot = this.bots.get(botId);
-    if (!bot) {
-      throw new Error(`Bot ${botId} não encontrado`);
-    }
+      const bot = this.bots.get(botId);
+      if (!bot) {
+        throw new Error(`Bot ${botId} não encontrado`);
+      }
 
-    // Criar keyboard com botões de pagamento
-    let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
-    const buttonsToUse = config.resendPaymentButtons && config.resendPaymentButtons.length > 0 
-      ? config.resendPaymentButtons 
-      : config.paymentButtons;
-    
-    if (buttonsToUse && buttonsToUse.length > 0) {
-      keyboard = {
-        inline_keyboard: buttonsToUse.map((btn) => [
-          {
-            text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
-            callback_data: `payment_${btn.value}`,
-          },
-        ]),
-      };
-    }
+      // Criar keyboard com botões de pagamento
+      let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
+      const buttonsToUse = config.resendPaymentButtons && config.resendPaymentButtons.length > 0 
+        ? config.resendPaymentButtons 
+        : config.paymentButtons;
+      
+      if (buttonsToUse && buttonsToUse.length > 0) {
+        keyboard = {
+          inline_keyboard: buttonsToUse.map((btn) => [
+            {
+              text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
+              callback_data: `payment_${btn.value}`,
+            },
+          ]),
+        };
+      }
 
-    // Usar mídia e caption de reenvio se configurado, senão usar os de start
-    const mediaUrl = config.resendImage || config.startImage;
-    const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      // Usar mídia e caption de reenvio se configurado, senão usar os de start
+      const mediaUrl = config.resendImage || config.startImage;
+      const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-    if (mediaUrl) {
-      try {
-        const isVideo = this.isVideoUrl(mediaUrl);
-        const media = await this.getMediaInput(mediaUrl);
+      if (mediaUrl) {
+        let mediaSent = false;
+        try {
+          const isVideo = this.isVideoUrl(mediaUrl);
+          const media = await this.getMediaInput(mediaUrl);
+          
+          // Se getMediaInput retornou uma string (URL), significa que o arquivo não foi encontrado localmente
+          // Tentar enviar como URL primeiro, se falhar, enviar apenas texto
+          if (typeof media === 'string') {
+            // Se é uma URL que falhou ao baixar, enviar apenas texto
+            if (media.includes('bot-backend.clashdata.pro') || media.includes('localhost') || media.startsWith('http')) {
+              console.warn(`[BotManager] Arquivo não encontrado no reenvio (${mediaUrl}), enviando apenas texto`);
+              await bot.api.sendMessage(parseInt(chatId), captionText, {
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+              mediaSent = true;
+            } else {
+              // Tentar enviar como URL externa
+              try {
+                if (isVideo) {
+                  await bot.api.sendVideo(parseInt(chatId), media, {
+                    caption: captionText,
+                    reply_markup: keyboard,
+                    parse_mode: undefined,
+                  });
+                } else {
+                  await bot.api.sendPhoto(parseInt(chatId), media, {
+                    caption: captionText,
+                    reply_markup: keyboard,
+                    parse_mode: undefined,
+                  });
+                }
+                mediaSent = true;
+              } catch (urlError) {
+                console.warn(`[BotManager] Erro ao enviar mídia via URL, enviando apenas texto:`, urlError);
+                await bot.api.sendMessage(parseInt(chatId), captionText, {
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+                mediaSent = true;
+              }
+            }
+          } else {
+            // Media é um InputFile, tentar enviar
+            try {
+              if (isVideo) {
+                await bot.api.sendVideo(parseInt(chatId), media, {
+                  caption: captionText,
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+              } else {
+                await bot.api.sendPhoto(parseInt(chatId), media, {
+                  caption: captionText,
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+              }
+              mediaSent = true;
+            } catch (fileError) {
+              console.warn(`[BotManager] Erro ao enviar arquivo de mídia, enviando apenas texto:`, fileError);
+              await bot.api.sendMessage(parseInt(chatId), captionText, {
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+              mediaSent = true;
+            }
+          }
+        } catch (error: any) {
+          // Se ainda não enviou, tentar enviar apenas texto
+          if (!mediaSent) {
+            console.error(`[BotManager] Erro ao processar mídia no reenvio (${mediaUrl}), enviando apenas texto:`, error?.message || error);
+            try {
+              await bot.api.sendMessage(parseInt(chatId), captionText, {
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+              mediaSent = true;
+            } catch (textError) {
+              console.error(`[BotManager] Erro crítico ao enviar mensagem de texto no reenvio:`, textError);
+              throw textError;
+            }
+          }
+        }
         
-        if (typeof media === 'string' && (media.includes('bot-backend.clashdata.pro') || media.includes('localhost'))) {
+        // Garantir que a mensagem foi enviada
+        if (!mediaSent) {
+          console.warn(`[BotManager] Mídia não foi enviada, enviando apenas texto como fallback`);
           await bot.api.sendMessage(parseInt(chatId), captionText, {
             reply_markup: keyboard,
             parse_mode: undefined,
           });
-        } else {
-          if (isVideo) {
-            await bot.api.sendVideo(parseInt(chatId), media, {
-              caption: captionText,
-              reply_markup: keyboard,
-              parse_mode: undefined,
-            });
-          } else {
-            await bot.api.sendPhoto(parseInt(chatId), media, {
-              caption: captionText,
-              reply_markup: keyboard,
-              parse_mode: undefined,
-            });
-          }
         }
-      } catch (error) {
-        console.error(`[BotManager] Erro ao enviar mídia no reenvio, enviando apenas texto:`, error);
+      } else {
+        // Sem mídia, enviar apenas texto
         await bot.api.sendMessage(parseInt(chatId), captionText, {
           reply_markup: keyboard,
           parse_mode: undefined,
         });
       }
-    } else {
-      await bot.api.sendMessage(parseInt(chatId), captionText, {
-        reply_markup: keyboard,
-        parse_mode: undefined,
-      });
+      
+      console.log(`[BotManager] Mensagem de reenvio enviada com sucesso para bot ${botId}, chat ${chatId}`);
+    } catch (error: any) {
+      console.error(`[BotManager] Erro crítico ao enviar mensagem de reenvio para bot ${botId}, chat ${chatId}:`, error);
+      throw error;
     }
   }
 
