@@ -129,34 +129,40 @@ export async function scheduleResends(
   firstDelayMinutes: number,
   intervalMinutes: number
 ) {
-  // Remover jobs antigos para este bot/chat
-  await removeResendJobs(botId, chatId);
+  try {
+    // Remover jobs antigos para este bot/chat
+    await removeResendJobs(botId, chatId);
 
-  // Agendar primeiro reenvio
-  const firstDelay = firstDelayMinutes * 60 * 1000; // Converter para ms
-  await resendQueue.add(
-    `resend-${botId}-${chatId}-first`,
-    { botId, chatId },
-    {
-      delay: firstDelay,
-      jobId: `resend-${botId}-${chatId}-first`,
-    }
-  );
+    // Agendar primeiro reenvio
+    const firstDelay = firstDelayMinutes * 60 * 1000; // Converter para ms
+    const firstJob = await resendQueue.add(
+      `resend-${botId}-${chatId}-first`,
+      { botId, chatId },
+      {
+        delay: firstDelay,
+        jobId: `resend-${botId}-${chatId}-first`,
+      }
+    );
+    console.log(`[ResendQueue] Primeiro reenvio agendado para bot ${botId}, chat ${chatId} em ${firstDelayMinutes} minutos (job ${firstJob.id})`);
 
-  // Agendar reenvios recorrentes
-  const interval = intervalMinutes * 60 * 1000; // Converter para ms
-  await resendQueue.add(
-    `resend-${botId}-${chatId}-recurring`,
-    { botId, chatId },
-    {
-      repeat: {
-        every: interval,
-        immediately: false,
-      },
-      jobId: `resend-${botId}-${chatId}-recurring`,
-    }
-  );
-
+    // Agendar reenvios recorrentes
+    const interval = intervalMinutes * 60 * 1000; // Converter para ms
+    const recurringJob = await resendQueue.add(
+      `resend-${botId}-${chatId}-recurring`,
+      { botId, chatId },
+      {
+        repeat: {
+          every: interval,
+          immediately: false,
+        },
+        jobId: `resend-${botId}-${chatId}-recurring`,
+      }
+    );
+    console.log(`[ResendQueue] Reenvios recorrentes agendados para bot ${botId}, chat ${chatId} a cada ${intervalMinutes} minutos (job ${recurringJob.id})`);
+  } catch (error) {
+    console.error(`[ResendQueue] Erro ao agendar reenvios para bot ${botId}, chat ${chatId}:`, error);
+    throw error;
+  }
 }
 
 // Função para remover jobs de reenvio
@@ -238,7 +244,19 @@ export async function restoreResends() {
 
 }
 
-// Tratamento de erros do worker
+// Tratamento de erros e eventos do worker
+resendWorker.on("ready", () => {
+  console.log("[ResendQueue] Worker iniciado e pronto para processar jobs");
+});
+
+resendWorker.on("active", (job) => {
+  console.log(`[ResendQueue] Processando job ${job.id} para bot ${job.data.botId}, chat ${job.data.chatId}`);
+});
+
+resendWorker.on("completed", (job) => {
+  console.log(`[ResendQueue] Job ${job.id} completado com sucesso`);
+});
+
 resendWorker.on("failed", (job, err) => {
   console.error(`[ResendQueue] Job ${job?.id} falhou:`, err);
 });

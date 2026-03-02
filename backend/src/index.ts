@@ -15,7 +15,7 @@ import { webhookRoutes } from "./routes/webhook";
 import { trackingRoutes } from "./routes/tracking";
 import { queueRoutes } from "./routes/queue";
 import { BotManager } from "./services/bot-manager";
-import { restoreResends } from "./services/resend-queue";
+import { restoreResends, resendWorker } from "./services/resend-queue";
 
 const prisma = new PrismaClient();
 const botManager = BotManager.getInstance();
@@ -169,6 +169,8 @@ app.listen(port, () => {
   console.log(`🦊 Elysia is running at http://0.0.0.0:${port}`);
   // Inicializar bots após o servidor iniciar completamente
   initializeBots();
+  // Worker do BullMQ é iniciado automaticamente quando importado
+  console.log(`[ResendQueue] Worker de reenvios está ativo`);
 });
 
 export type App = typeof app;

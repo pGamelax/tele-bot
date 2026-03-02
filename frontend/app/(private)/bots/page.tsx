@@ -53,14 +53,14 @@ export default function BotsPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-start">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Bots</h1>
-              <p className="text-sm text-muted-foreground mt-2">Gerencie seus bots do Telegram</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Bots</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">Gerencie seus bots do Telegram</p>
             </div>
-            <Link href="/bots/new">
-              <Button>
+            <Link href="/bots/new" className="w-full sm:w-auto">
+              <Button className="w-full sm:w-auto" size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Bot
               </Button>
@@ -69,7 +69,7 @@ export default function BotsPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pb-6">
         {!bots || bots.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -85,7 +85,7 @@ export default function BotsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {bots.map((bot) => (
               <Card key={bot.id}>
                 <CardHeader>

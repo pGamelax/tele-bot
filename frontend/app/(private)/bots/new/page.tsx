@@ -99,16 +99,16 @@ export default function NewBotPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Link href="/bots" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+          <Link href="/bots" className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-3 sm:mb-4">
             <ArrowLeft className="h-4 w-4" />
-            Voltar
+            <span className="hidden sm:inline">Voltar</span>
           </Link>
-          <h1 className="text-3xl font-bold text-foreground">Novo Bot</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Novo Bot</h1>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pb-4 sm:pb-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
             <CardHeader>

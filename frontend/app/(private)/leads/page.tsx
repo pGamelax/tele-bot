@@ -133,23 +133,23 @@ export default function LeadsPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-foreground">Leads</h1>
-          <p className="text-sm text-muted-foreground mt-2">Gerencie seus leads e clientes</p>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Leads</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">Gerencie seus leads e clientes</p>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Card className="mb-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pb-6">
+        <Card className="mb-4 sm:mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
               Filtros
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4 flex-wrap">
-              <div className="flex-1 min-w-[200px]">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex-1 min-w-0">
                 <label className="block text-sm font-medium text-foreground mb-1">Bot</label>
                 <select
                   value={selectedBotId}
@@ -164,7 +164,7 @@ export default function LeadsPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex-1 min-w-0">
                 <label className="block text-sm font-medium text-foreground mb-1">Status</label>
                 <select
                   value={showOnlyNew === undefined ? "" : showOnlyNew ? "new" : "old"}
@@ -192,13 +192,13 @@ export default function LeadsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {leads.map((lead) => (
               <Card key={lead.id}>
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                <CardContent className="pt-4 sm:pt-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
                         <h3 className="text-lg font-semibold text-foreground">
                           {lead.firstName || lead.telegramUsername || "Usuário"}
                           {lead.lastName && ` ${lead.lastName}`}
@@ -219,15 +219,15 @@ export default function LeadsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="space-y-1 text-sm text-muted-foreground">
-                        <p>
+                      <div className="space-y-1 text-xs sm:text-sm text-muted-foreground">
+                        <p className="break-words">
                           <span className="font-medium text-foreground">Bot:</span> {lead.bot.name}
                         </p>
-                        <p>
+                        <p className="break-words">
                           <span className="font-medium text-foreground">Username:</span>{" "}
                           {lead.telegramUsername || "N/A"}
                         </p>
-                        <p>
+                        <p className="break-words">
                           <span className="font-medium text-foreground">Chat ID:</span> {lead.telegramChatId}
                         </p>
                         {lead.utmSource && (
@@ -257,10 +257,10 @@ export default function LeadsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-start">
+                    <div className="flex items-start shrink-0">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
