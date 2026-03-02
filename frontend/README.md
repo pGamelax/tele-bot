@@ -28,7 +28,15 @@ Edite o arquivo `.env.local`:
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3000
 NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=seu_cloud_name
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=telebot
 ```
+
+**Variáveis do Cloudinary:**
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`: Nome da sua conta no Cloudinary (ex: `df2o3eh6o`)
+- `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`: Nome do preset configurado como "Unsigned" no painel do Cloudinary (padrão: `telebot`)
+
+**Nota:** O preset deve estar configurado como "Unsigned" no painel do Cloudinary para permitir uploads diretos do navegador.
 
 3. Execute o servidor de desenvolvimento:
 ```bash

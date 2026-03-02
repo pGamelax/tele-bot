@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { PrismaClient } from "@prisma/client";
 import { BotManager } from "../services/bot-manager";
 import { auth } from "../lib/auth";
+import { rescheduleBotResends } from "../services/resend-queue";
 
 const prisma = new PrismaClient();
 const botManager = BotManager.getInstance();
@@ -581,6 +582,11 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
             })),
           paymentConfirmedMessage: bot.paymentConfirmedMessage,
         });
+      }
+
+      // Se os tempos de reenvio foram atualizados, reagendar todos os jobs do bot
+      if (resendFirstDelay !== undefined || resendInterval !== undefined) {
+        await rescheduleBotResends(bot.id);
       }
 
       return { bot };

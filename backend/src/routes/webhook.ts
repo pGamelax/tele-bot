@@ -41,7 +41,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
       }
       
       if (!data.id && !data.idtransaction && !data.identifier && !data.externalreference) {
-        console.error("[Webhook SyncPay] Nenhum identificador encontrado na notificação");
         set.status = 400;
         return { error: "id é obrigatório" };
       }
@@ -80,7 +79,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
       }
 
       if (!payment) {
-        console.warn(`[Webhook SyncPay] Pagamento não encontrado para identifier: ${identifier}, externalReference: ${externalReference}`);
         set.status = 404;
         return { error: "Pagamento não encontrado", identifier, externalReference };
       }
@@ -172,8 +170,6 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               convertedAt: new Date(),
             },
           });
-        } else {
-          console.warn(`[Webhook SyncPay] Lead não encontrado para bot ${payment.botId} e chat ${payment.telegramChatId}`);
         }
 
         // Parar reenvios para este chat
@@ -210,11 +206,7 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
             }
           }
         } catch (facebookError: any) {
-          console.error("[Webhook SyncPay] Erro ao enviar evento para Facebook:", {
-            error: facebookError?.message,
-            stack: facebookError?.stack?.substring(0, 300),
-          });
-          // Não falhar o webhook se houver erro ao enviar para Facebook
+          // Ignorar erro ao enviar para Facebook
         }
 
         // Notificar o usuário no Telegram
@@ -242,11 +234,7 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
             
           }
         } catch (telegramError: any) {
-          console.error("[Webhook SyncPay] Erro ao enviar notificação no Telegram:", {
-            error: telegramError?.message,
-            stack: telegramError?.stack?.substring(0, 300),
-          });
-          // Não falhar o webhook se houver erro ao enviar mensagem
+          // Ignorar erro ao enviar mensagem
         }
       }
 
@@ -257,12 +245,7 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
         status: newStatus,
       };
     } catch (error: any) {
-      console.error("[Webhook SyncPay] Erro ao processar webhook:", {
-        error: error.message,
-        stack: error.stack?.substring(0, 500),
-        body: JSON.stringify(body, null, 2),
-      });
-      
+      console.error("[Webhook SyncPay] Erro ao processar webhook:", error);
       set.status = 500;
       return { error: "Erro ao processar webhook" };
     }

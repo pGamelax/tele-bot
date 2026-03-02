@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
-import { useStats, usePayments } from "@/lib/api-client"
+import { useStats } from "@/lib/api-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -22,7 +22,6 @@ export default function DashboardPage() {
   
   // Usar React Query para buscar dados
   const { data: stats, isLoading: statsLoading, error: statsError } = useStats()
-  const { data: payments = [], isLoading: paymentsLoading, error: paymentsError } = usePayments()
 
   useEffect(() => {
     if (!session) {
@@ -32,16 +31,16 @@ export default function DashboardPage() {
   }, [session, router])
 
   useEffect(() => {
-    if (statsError || paymentsError) {
+    if (statsError) {
       toast({
         title: "Erro",
         description: "Erro ao carregar dados",
         variant: "destructive",
       })
     }
-  }, [statsError, paymentsError, toast])
+  }, [statsError, toast])
 
-  const isLoading = statsLoading || paymentsLoading
+  const isLoading = statsLoading
 
 
   if (isLoading) {
@@ -84,9 +83,9 @@ export default function DashboardPage() {
     })
   }
 
-  // Calcular PIX gerados e pagos
-  const pixGenerated = payments.length
-  const pixPaid = payments.filter((p) => p.status === "paid").length
+  // Calcular PIX gerados e pagos (usando stats)
+  const pixGenerated = stats.totalPixGenerated || 0
+  const pixPaid = stats.totalPixPaid || 0
 
   // Calcular máximo para o gráfico
   const maxRevenue =
@@ -244,7 +243,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Payments Table */}
+        {/* Link para página de pagamentos */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold">
@@ -252,71 +251,13 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Valor</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground">
-                      Criado em
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground">
-                      Pago em
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.length > 0 ? (
-                    payments.slice(0, 10).map((payment) => (
-                      <tr key={payment.id} className="border-b border-border/50">
-                        <td className="py-3 px-4 text-sm font-medium text-foreground">
-                          {formatCurrency(payment.amount / 100)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              payment.status === "paid"
-                                ? "bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400"
-                                : payment.status === "pending"
-                                ? "bg-yellow-500/10 text-yellow-500 dark:bg-yellow-500/20 dark:text-yellow-400"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {payment.status === "paid"
-                              ? "Pago"
-                              : payment.status === "pending"
-                              ? "Pendente"
-                              : payment.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDateTime(payment.createdAt)}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {payment.paidAt ? (
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatDateTime(payment.paidAt)}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-muted-foreground">
-                        Nenhum pagamento encontrado
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">
+                Visualize todos os pagamentos com filtros avançados
+              </p>
+              <Button onClick={() => router.push("/payments")}>
+                Ver Histórico Completo
+              </Button>
             </div>
           </CardContent>
         </Card>

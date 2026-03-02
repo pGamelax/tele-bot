@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "./button"
 import { useToast } from "./use-toast"
 import { Upload, X, Image as ImageIcon, Video, Loader2 } from "lucide-react"
-import { fetchWithAuth } from "@/lib/api-client"
+import { uploadToCloudinary } from "@/lib/cloudinary"
 
 interface ImageUploadProps {
   value?: string
@@ -54,29 +54,17 @@ export function ImageUpload({
     const previewUrl = URL.createObjectURL(file)
     setPreview(previewUrl)
 
-    // Fazer upload
+    // Fazer upload direto ao Cloudinary
     setIsUploading(true)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Usar fetchWithAuth para fazer upload direto ao backend
-      const response = await fetchWithAuth(`/api/upload/media`, {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao fazer upload")
-      }
-
-      const data = await response.json()
-      onChange(data.url)
+      const result = await uploadToCloudinary(file)
+      
+      // Usar a URL segura (HTTPS) do Cloudinary
+      onChange(result.secure_url)
       
       // Limpar preview temporário e usar a URL real
       URL.revokeObjectURL(previewUrl)
-      setPreview(data.url)
+      setPreview(result.secure_url)
 
       toast({
         title: "Sucesso",

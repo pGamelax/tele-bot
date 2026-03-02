@@ -22,6 +22,7 @@ import {
   X,
   User,
   Settings,
+  DollarSign,
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -44,6 +45,7 @@ export function Navbar() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/bots", label: "Bots", icon: Bot },
     { href: "/leads", label: "Leads", icon: Users },
+    { href: "/payments", label: "Pagamentos", icon: DollarSign },
   ]
 
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/")

@@ -50,11 +50,16 @@ export interface Stats {
 
 export interface Payment {
   id: string
+  botId: string
   amount: number
   status: string
   createdAt: string
   paidAt: string | null
   pixCode: string | null
+  bot?: {
+    id: string
+    name: string
+  }
 }
 
 export interface Bot {

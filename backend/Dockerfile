@@ -30,10 +30,6 @@ COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/src ./src
 COPY --from=build /app/backend/package.json ./
 
-# Criar diretório de uploads e definir variável de ambiente
-RUN mkdir -p uploads
-ENV UPLOAD_DIR=/app/backend/uploads
-
 # Gerar Prisma Client
 RUN bunx --bun prisma generate
 

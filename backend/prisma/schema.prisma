@@ -104,6 +104,7 @@ model Bot {
 
   paymentButtons PaymentButton[]
   leads          Lead[]
+  payments       Payment[]
 
   @@map("bots")
 }
@@ -124,6 +125,7 @@ model PaymentButton {
 model Payment {
   id              String   @id @default(cuid())
   botId           String
+  bot             Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
   telegramChatId  String
   amount          Int      // Valor em centavos
   syncpayId       String?  // ID do pagamento no SyncPay

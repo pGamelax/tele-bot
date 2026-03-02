@@ -20,37 +20,21 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
       session: session.session,
     };
   })
+  .onBeforeHandle(({ user, set }) => {
+    if (!user) {
+      set.status = 401;
+      return { error: "Não autorizado" };
+    }
+  })
   .get("/", async ({ user, query, set }) => {
     try {
-      if (!user) {
-        set.status = 401;
-        return { error: "Não autorizado" };
-      }
 
       const botId = query.botId as string | undefined;
+      const status = query.status as string | undefined;
+      const startDate = query.startDate as string | undefined;
+      const endDate = query.endDate as string | undefined;
+      const limit = query.limit ? parseInt(query.limit as string) : 100;
 
-      // Se botId for fornecido, buscar apenas desse bot
-      if (botId) {
-        // Verificar se o bot pertence ao usuário
-        const bot = await prisma.bot.findFirst({
-          where: { id: botId, userId: user.id },
-        });
-
-        if (!bot) {
-          set.status = 403;
-          return { error: "Acesso negado" };
-        }
-
-        const payments = await prisma.payment.findMany({
-          where: { botId },
-          orderBy: { createdAt: "desc" },
-          take: 100,
-        });
-
-        return { payments };
-      }
-
-      // Se não houver botId, buscar todos os pagamentos dos bots do usuário
       const userBots = await prisma.bot.findMany({
         where: { userId: user.id },
         select: { id: true },
@@ -62,14 +46,54 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
         return { payments: [] };
       }
 
+      const where: any = {
+        botId: botId ? botId : { in: botIds },
+      };
+
+      if (botId) {
+        if (!botIds.includes(botId)) {
+          set.status = 403;
+          return { error: "Acesso negado" };
+        }
+      }
+
+      if (status && (status === "paid" || status === "pending" || status === "expired")) {
+        where.status = status;
+      }
+
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) {
+          where.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          where.createdAt.lte = end;
+        }
+        
+        if (Object.keys(where.createdAt).length === 0) {
+          delete where.createdAt;
+        }
+      }
+
       const payments = await prisma.payment.findMany({
-        where: { botId: { in: botIds } },
+        where,
+        include: {
+          bot: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take: limit,
       });
 
       return { payments };
     } catch (error) {
+      console.error("Erro ao buscar pagamentos:", error);
       set.status = 500;
       return { error: "Erro ao buscar pagamentos" };
     }

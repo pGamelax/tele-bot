@@ -97,7 +97,6 @@ export const trackingRoutes = new Elysia({ prefix: "/api/tracking" })
         directLink: false,
       };
     } catch (error: any) {
-      console.error("[Tracking] Erro ao gerar link:", error);
       set.status = 500;
       return { error: error.message || "Erro ao gerar link de tracking" };
     }
@@ -153,7 +152,6 @@ export const trackingRoutes = new Elysia({ prefix: "/api/tracking" })
       set.headers["Content-Type"] = "text/html; charset=utf-8";
       return `<html><head><meta http-equiv="refresh" content="0; url=${telegramUrl}"></head><body><script>window.location.href="${telegramUrl}";</script><p>Redirecionando para <a href="${telegramUrl}">Telegram</a>...</p></body></html>`;
     } catch (error: any) {
-      console.error("[Tracking] Erro ao redirecionar:", error);
       set.status = 500;
       return { error: error.message || "Erro ao redirecionar" };
     }
