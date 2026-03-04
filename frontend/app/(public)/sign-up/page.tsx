@@ -66,9 +66,23 @@ export default function SignUpPage() {
       })
 
       if (result.error) {
+        console.error("Erro ao criar conta:", result.error)
+        let errorMessage = result.error.message || result.error.code || "Erro ao criar conta"
+        
+        // Traduzir mensagens de erro comuns
+        if (errorMessage.toLowerCase().includes("email") && errorMessage.toLowerCase().includes("already") || 
+            errorMessage.toLowerCase().includes("já existe") ||
+            errorMessage.toLowerCase().includes("unique") ||
+            errorMessage.toLowerCase().includes("duplicate")) {
+          errorMessage = "Este email já está cadastrado. Tente fazer login ou use outro email."
+        } else if (errorMessage.toLowerCase().includes("invalid email") || 
+                   errorMessage.toLowerCase().includes("email inválido")) {
+          errorMessage = "Por favor, insira um email válido."
+        }
+        
         toast({
           title: "Erro",
-          description: result.error.message || "Erro ao criar conta",
+          description: errorMessage,
           variant: "destructive",
         })
         setIsLoading(false)
@@ -82,9 +96,10 @@ export default function SignUpPage() {
         window.location.href = "/dashboard"
       }
     } catch (error: any) {
+      console.error("Erro ao criar conta (catch):", error)
       toast({
         title: "Erro",
-        description: error.message || "Erro ao criar conta",
+        description: error.message || error.toString() || "Erro ao criar conta",
         variant: "destructive",
       })
       setIsLoading(false)
