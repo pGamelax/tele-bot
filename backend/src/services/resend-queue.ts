@@ -101,12 +101,26 @@ export const resendWorker = new Worker(
         const intervalMinutes = bot.resendInterval || 10;
         const interval = intervalMinutes * 60 * 1000;
         
+        const recurringJobId = `resend-${botId}-${chatId}-recurring`;
+        
+        const existingJobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
+        for (const existingJob of existingJobs) {
+          if (existingJob.id === recurringJobId || 
+              (existingJob.data.botId === botId && existingJob.data.chatId === chatId && !existingJob.data.isFirst)) {
+            try {
+              await existingJob.remove();
+            } catch (error) {
+              // Ignorar erros se o job já foi removido
+            }
+          }
+        }
+        
         await resendQueue.add(
           `resend-${botId}-${chatId}-recurring`,
           { botId, chatId, isFirst: false },
           {
             delay: interval,
-            jobId: `resend-${botId}-${chatId}-recurring-${Date.now()}`,
+            jobId: recurringJobId,
           }
         );
 
@@ -142,13 +156,25 @@ export async function scheduleResends(
   try {
     await removeResendJobs(botId, chatId);
 
+    const firstJobId = `resend-${botId}-${chatId}-first`;
+    
+    const existingJobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
+    const hasExistingJob = existingJobs.some(
+      job => job.id === firstJobId || 
+      (job.data.botId === botId && job.data.chatId === chatId)
+    );
+    
+    if (hasExistingJob) {
+      return;
+    }
+
     const firstDelay = firstDelayMinutes * 60 * 1000;
     await resendQueue.add(
       `resend-${botId}-${chatId}-first`,
       { botId, chatId, isFirst: true },
       {
         delay: firstDelay,
-        jobId: `resend-${botId}-${chatId}-first`,
+        jobId: firstJobId,
       }
     );
   } catch (error) {
@@ -161,35 +187,40 @@ export async function scheduleResends(
  * Remove jobs de reenvio para um bot/chat específico ou todos os jobs de um bot.
  */
 export async function removeResendJobs(botId: string, chatId?: string) {
-  const repeatableJobs = await resendQueue.getRepeatableJobs();
-  for (const job of repeatableJobs) {
-    const shouldRemove = chatId 
-      ? job.id?.includes(`resend-${botId}-${chatId}`)
-      : job.id?.includes(`resend-${botId}-`);
-    
-    if (shouldRemove) {
-      try {
-        await resendQueue.removeRepeatableByKey(job.key);
-      } catch (error) {
-        // Ignorar erros se o job já foi removido
+  try {
+    const repeatableJobs = await resendQueue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+      const shouldRemove = chatId 
+        ? job.id?.includes(`resend-${botId}-${chatId}`)
+        : job.id?.includes(`resend-${botId}-`);
+      
+      if (shouldRemove) {
+        try {
+          await resendQueue.removeRepeatableByKey(job.key);
+        } catch (error) {
+          // Ignorar erros se o job já foi removido
+        }
       }
     }
-  }
 
-  const jobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
-  
-  for (const job of jobs) {
-    const shouldRemove = chatId
-      ? job.data.botId === botId && job.data.chatId === chatId
-      : job.data.botId === botId;
+    const jobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
     
-    if (shouldRemove) {
-      try {
-        await job.remove();
-      } catch (error) {
-        // Ignorar erros se o job já foi removido
+    for (const job of jobs) {
+      const shouldRemove = chatId
+        ? (job.data.botId === botId && job.data.chatId === chatId) ||
+          (job.id && chatId && job.id.includes(`resend-${botId}-${chatId}`))
+        : job.data.botId === botId || (job.id && job.id.includes(`resend-${botId}-`));
+      
+      if (shouldRemove) {
+        try {
+          await job.remove();
+        } catch (error) {
+          // Ignorar erros se o job já foi removido
+        }
       }
     }
+  } catch (error) {
+    console.error(`[ResendQueue] Erro ao remover jobs:`, error);
   }
 }
 

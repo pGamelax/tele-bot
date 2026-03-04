@@ -51,6 +51,7 @@ export interface Stats {
 export interface Payment {
   id: string
   botId: string
+  telegramChatId: string
   amount: number
   status: string
   createdAt: string

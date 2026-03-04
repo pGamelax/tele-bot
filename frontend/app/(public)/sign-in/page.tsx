@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,13 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { data: session } = authClient.useSession()
+
+  useEffect(() => {
+    if (session) {
+      router.push("/dashboard")
+    }
+  }, [session, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,12 +38,15 @@ export default function SignInPage() {
           description: result.error.message || "Erro ao fazer login",
           variant: "destructive",
         })
+        setIsLoading(false)
       } else {
         toast({
           title: "Sucesso",
           description: "Login realizado com sucesso",
         })
-        router.push("/dashboard")
+        await authClient.getSession()
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        window.location.href = "/dashboard"
       }
     } catch (error: any) {
       toast({
@@ -44,7 +54,6 @@ export default function SignInPage() {
         description: error.message || "Erro ao fazer login",
         variant: "destructive",
       })
-    } finally {
       setIsLoading(false)
     }
   }

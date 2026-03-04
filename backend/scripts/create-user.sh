@@ -48,7 +48,15 @@ try {
     }),
   });
 
-  const data = await response.json();
+  let data;
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    const text = await response.text();
+    data = { message: text || 'Resposta não é JSON' };
+  }
+  
   const status = response.status;
 
   if (status === 200 || status === 201) {
@@ -57,11 +65,51 @@ try {
     process.exit(0);
   } else {
     console.error('❌ Erro ao criar usuário (HTTP ' + status + ')');
+    console.error('Resposta completa:');
     console.error(JSON.stringify(data, null, 2));
+    
+    if (status === 500) {
+      console.log('');
+      console.log('⚠️  Erro 500 detectado. Verificando se o usuário foi criado mesmo assim...');
+      
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      try {
+        const user = await prisma.user.findUnique({
+          where: { email: email },
+          include: { accounts: true },
+        });
+        
+        if (user) {
+          console.log('✅ Usuário encontrado no banco de dados!');
+          console.log('ID:', user.id);
+          console.log('Email:', user.email);
+          console.log('Accounts:', user.accounts.length);
+          
+          if (user.accounts.length === 0) {
+            console.log('');
+            console.log('⚠️  AVISO: Usuário criado mas sem Account associada!');
+            console.log('Execute o script fix-user.sh para corrigir:');
+            console.log(\`  ./scripts/fix-user.sh \${email} \${password}\`);
+          } else {
+            console.log('✅ Usuário parece estar completo. Tente fazer login.');
+          }
+        } else {
+          console.log('❌ Usuário não foi criado no banco de dados.');
+        }
+        
+        await prisma.\$disconnect();
+      } catch (dbError) {
+        console.error('Erro ao verificar banco:', dbError.message);
+      }
+    }
+    
     process.exit(1);
   }
 } catch (error) {
   console.error('❌ Erro ao fazer requisição:', error.message);
+  console.error('Stack:', error.stack);
   process.exit(1);
 }
 "
