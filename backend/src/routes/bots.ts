@@ -52,7 +52,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           date.setDate(date.getDate() - i);
           date.setHours(0, 0, 0, 0);
           revenueByDay.push({
-            date: date.toISOString().split('T')[0],
+      date: date.toISOString().split('T')[0],
             revenue: 0,
           });
         }

@@ -50,11 +50,14 @@ export default function SignUpPage() {
     setIsLoading(true)
 
     try {
-      const result = await authClient.signUp.email({
+      const signUpData: { email: string; password: string; name?: string } = {
         email,
         password,
-        name: name || undefined,
-      })
+      }
+      if (name) {
+        signUpData.name = name
+      }
+      const result = await authClient.signUp.email(signUpData)
 
       if (result.error) {
         toast({
