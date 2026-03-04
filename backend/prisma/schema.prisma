@@ -34,7 +34,7 @@ model Account {
   providerId        String
   type              String  @default("credential")
   provider          String  @default("credential")
-  providerAccountId String  @default("")
+  providerAccountId String
   refresh_token     String? @db.Text
   access_token      String? @db.Text
   expires_at        Int?
