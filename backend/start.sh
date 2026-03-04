@@ -24,9 +24,5 @@ fi
 
 echo "✅ Migrações aplicadas com sucesso!"
 echo "🚀 Iniciando servidor..."
-# Se o build existir, usar o build, senão usar src/index.ts (desenvolvimento)
-if [ -f "./build/index.js" ]; then
-  exec bun run build/index.js
-else
-  exec bun run src/index.ts
-fi
+# Bun pode executar TypeScript diretamente, não precisa de build
+exec bun run src/index.ts

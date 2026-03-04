@@ -10,25 +10,15 @@ COPY backend/package.json ./
 COPY backend/bun.lockb* ./
 RUN bun install --frozen-lockfile
 
-# Build
-FROM base AS build
-WORKDIR /app/backend
-COPY --from=deps /app/backend/node_modules ./node_modules
-COPY backend/package.json ./
-COPY backend/prisma ./prisma
-COPY backend/src ./src
-RUN bun run build
-
 # Produção
 FROM base AS production
 WORKDIR /app/backend
 
 # Copiar apenas arquivos necessários
 COPY --from=deps /app/backend/node_modules ./node_modules
-COPY --from=build /app/backend/build ./build
-COPY --from=build /app/backend/prisma ./prisma
-COPY --from=build /app/backend/src ./src
-COPY --from=build /app/backend/package.json ./
+COPY backend/package.json ./
+COPY backend/prisma ./prisma
+COPY backend/src ./src
 
 # Gerar Prisma Client
 RUN bunx --bun prisma generate
