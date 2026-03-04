@@ -9,8 +9,20 @@ if [ ! -f "./node_modules/.prisma/client/index.js" ]; then
 fi
 
 echo "📊 Aplicando migrações do banco de dados..."
-bunx prisma db push --skip-generate || echo "⚠️  Aviso: Erro ao aplicar migrações (pode ser normal se já existirem)"
+# Usar migrate deploy para produção (aplica apenas migrações pendentes)
+if bunx prisma migrate deploy; then
+  echo "✅ Migrações aplicadas com sucesso usando migrate deploy!"
+else
+  echo "⚠️  Erro ao aplicar migrações com migrate deploy, tentando db push como fallback..."
+  if bunx prisma db push --skip-generate; then
+    echo "✅ Migrações aplicadas com sucesso usando db push!"
+  else
+    echo "❌ Erro ao aplicar migrações do banco de dados"
+    exit 1
+  fi
+fi
 
+echo "✅ Migrações aplicadas com sucesso!"
 echo "🚀 Iniciando servidor..."
 # Se o build existir, usar o build, senão usar src/index.ts (desenvolvimento)
 if [ -f "./build/index.js" ]; then
