@@ -29,6 +29,15 @@ export default function SignUpPage() {
     e.preventDefault()
     
     // Validações
+    if (!name || name.trim() === "") {
+      toast({
+        title: "Erro",
+        description: "O nome é obrigatório",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (password !== confirmPassword) {
       toast({
         title: "Erro",
@@ -50,14 +59,11 @@ export default function SignUpPage() {
     setIsLoading(true)
 
     try {
-      const signUpData: { email: string; password: string; name?: string } = {
+      const result = await authClient.signUp.email({
         email,
         password,
-      }
-      if (name) {
-        signUpData.name = name
-      }
-      const result = await authClient.signUp.email(signUpData)
+        name: name.trim(),
+      })
 
       if (result.error) {
         toast({
@@ -108,10 +114,11 @@ export default function SignUpPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
-                  Nome (opcional)
+                  Nome
                 </label>
                 <input
                   type="text"
+                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
