@@ -87,7 +87,7 @@ model Bot {
   startCaption    String?  // Caption da imagem
   isActive        Boolean  @default(true)
   // Configuração de reenvio
-  resendImage     String?  // URL da imagem para reenvio
+  resendImage     String?  // URL da imagem para reenvio (mantido para compatibilidade)
   resendCaption   String?  // Caption para reenvio
   resendFirstDelay Int     @default(20) // Minutos até primeiro reenvio
   resendInterval  Int      @default(10) // Minutos entre reenvios
@@ -103,10 +103,25 @@ model Bot {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   paymentButtons PaymentButton[]
+  resendImages   ResendImage[]
   leads          Lead[]
   payments       Payment[]
 
   @@map("bots")
+}
+
+model ResendImage {
+  id          String   @id @default(cuid())
+  botId       String
+  imageUrl    String   // URL da imagem/vídeo
+  order       Int      @default(0) // Ordem de exibição
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("resend_images")
+  @@index([botId, order])
 }
 
 model PaymentButton {
@@ -152,6 +167,8 @@ model Lead {
   contactedAt     DateTime? // Quando foi contatado
   convertedAt     DateTime? // Quando se tornou cliente (comprou)
   resendPaused    Boolean  @default(false) // Se o reenvio está pausado manualmente
+  resendImageIndex Int     @default(0) // Índice da imagem atual para rotação
+  isBlocked       Boolean  @default(false) // Se o usuário bloqueou o bot
   // Rastreamento Facebook Ads / UTM
   utmSource       String?  // utm_source (ex: facebook, google)
   utmMedium       String?  // utm_medium (ex: cpc, social)

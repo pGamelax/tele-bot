@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { Navbar } from "@/components/layout/navbar"
+import { Loading } from "@/components/ui/loading"
 
 export default function PrivateLayout({
   children,
@@ -20,11 +21,7 @@ export default function PrivateLayout({
   }, [session, isPending, router])
 
   if (isPending) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-500">Carregando...</div>
-      </div>
-    )
+    return <Loading />
   }
 
   if (!session) {

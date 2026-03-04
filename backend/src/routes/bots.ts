@@ -305,6 +305,9 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         where: { userId: user.id },
         include: {
           paymentButtons: true,
+          resendImages: {
+            orderBy: { order: "asc" },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -326,6 +329,9 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         where: { id: params.id },
         include: {
           paymentButtons: true,
+          resendImages: {
+            orderBy: { order: "asc" },
+          },
         },
       });
 
@@ -362,6 +368,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         startCaption,
         resendImage,
         resendCaption,
+        resendImages,
         resendFirstDelay,
         resendInterval,
         paymentButtons,
@@ -378,6 +385,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         startCaption?: string;
         resendImage?: string;
         resendCaption?: string;
+        resendImages?: string[];
         resendFirstDelay?: number;
         resendInterval?: number;
         paymentButtons?: Array<{ text: string; value: number }>;
@@ -416,9 +424,18 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
               ...(resendPaymentButtons || []).map((btn) => ({ ...btn, type: "resend" })),
             ],
           },
+          resendImages: {
+            create: (resendImages || []).map((url, index) => ({
+              imageUrl: url,
+              order: index,
+            })),
+          },
         } as any,
         include: {
           paymentButtons: true,
+          resendImages: {
+            orderBy: { order: "asc" },
+          },
         },
       }) as any;
 
@@ -430,6 +447,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         startCaption: bot.startCaption,
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
+        resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
         resendFirstDelay: bot.resendFirstDelay || 20,
         resendInterval: bot.resendInterval || 10,
         paymentButtons: bot.paymentButtons
@@ -469,6 +487,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         startCaption,
         resendImage,
         resendCaption,
+        resendImages,
         resendFirstDelay,
         resendInterval,
         paymentButtons,
@@ -486,6 +505,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         startCaption?: string;
         resendImage?: string;
         resendCaption?: string;
+        resendImages?: string[];
         resendFirstDelay?: number;
         resendInterval?: number;
         paymentButtons?: Array<{ text: string; value: number }>;
@@ -522,6 +542,9 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         data: updateData,
         include: {
           paymentButtons: true,
+          resendImages: {
+            orderBy: { order: "asc" },
+          },
         },
       }) as any;
 
@@ -557,6 +580,28 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         });
       }
 
+      // Atualizar imagens de remarketing
+      if (resendImages !== undefined) {
+        await prisma.resendImage.deleteMany({
+          where: { botId: params.id },
+        });
+
+        if (resendImages.length > 0) {
+          await prisma.resendImage.createMany({
+            data: resendImages.map((url, index) => ({
+              botId: params.id,
+              imageUrl: url,
+              order: index,
+            })),
+          });
+        }
+
+        bot.resendImages = await prisma.resendImage.findMany({
+          where: { botId: params.id },
+          orderBy: { order: "asc" },
+        });
+      }
+
       // Reiniciar bot se estiver ativo
       if (bot.isActive) {
         await botManager.startBot(bot.id, bot.telegramToken, {
@@ -566,6 +611,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           startCaption: bot.startCaption,
           resendImage: bot.resendImage,
           resendCaption: bot.resendCaption,
+          resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
           resendFirstDelay: bot.resendFirstDelay || 20,
           resendInterval: bot.resendInterval || 10,
           paymentButtons: bot.paymentButtons

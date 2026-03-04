@@ -73,6 +73,7 @@ export interface Bot {
   startCaption?: string | null
   resendImage?: string | null
   resendCaption?: string | null
+  resendImages?: Array<{ id: string; imageUrl: string; order: number }>
   resendFirstDelay: number
   resendInterval: number
   isActive: boolean
@@ -103,6 +104,7 @@ export interface Lead {
   contactedAt?: string | null
   convertedAt?: string | null
   resendPaused?: boolean
+  isBlocked?: boolean
   utmSource?: string | null
   utmMedium?: string | null
   utmCampaign?: string | null
@@ -202,6 +204,7 @@ interface BotInput {
   startCaption?: string | null
   resendImage?: string | null
   resendCaption?: string | null
+  resendImages?: string[]
   resendFirstDelay?: number
   resendInterval?: number
   isActive?: boolean

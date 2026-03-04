@@ -14,6 +14,7 @@ interface BotConfig {
   startCaption?: string | null;
   resendImage?: string | null;
   resendCaption?: string | null;
+  resendImages?: string[];
   resendFirstDelay?: number;
   resendInterval?: number;
   paymentButtons: Array<{ text: string; value: number }>;
@@ -38,6 +39,23 @@ export class BotManager {
 
   private isVideoUrl(url: string): boolean {
     return /\.(mp4|webm|ogg|mov)$/i.test(url);
+  }
+
+  private isBlockedError(error: any): boolean {
+    const errorCode = error?.error_code || error?.error?.error_code;
+    const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+    
+    // Códigos de erro do Telegram quando usuário bloqueia o bot
+    // 403: Forbidden - usuário bloqueou o bot
+    // 400 com "chat not found" ou "bot was blocked"
+    return (
+      errorCode === 403 ||
+      errorDesc.includes("bot was blocked") ||
+      errorDesc.includes("chat not found") ||
+      errorDesc.includes("user is deactivated") ||
+      errorDesc.includes("forbidden") ||
+      errorDesc.includes("blocked")
+    );
   }
 
   private async getMediaInput(mediaUrl: string): Promise<string | InputFile> {
@@ -132,18 +150,88 @@ export class BotManager {
               });
             }
           }
-        } catch (error) {
-          await bot.api.sendMessage(parseInt(chatId), caption, {
-            reply_markup: keyboard,
-            parse_mode: undefined,
-          });
+        } catch (error: any) {
+          // Verificar se é erro de bloqueio
+          const isBlockedError = this.isBlockedError(error);
+          if (isBlockedError) {
+            // Tentar atualizar lead se existir
+            try {
+              const lead = await prisma.lead.findFirst({
+                where: {
+                  botId,
+                  telegramChatId: chatId,
+                },
+              });
+              if (lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isBlocked: true },
+                });
+              }
+            } catch (leadError) {
+              // Ignorar erro ao atualizar lead
+            }
+            throw error;
+          }
+          // Se não for bloqueio, tentar enviar apenas texto
+          try {
+            await bot.api.sendMessage(parseInt(chatId), caption, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          } catch (messageError: any) {
+            const isBlockedError2 = this.isBlockedError(messageError);
+            if (isBlockedError2) {
+              try {
+                const lead = await prisma.lead.findFirst({
+                  where: {
+                    botId,
+                    telegramChatId: chatId,
+                  },
+                });
+                if (lead) {
+                  await prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { isBlocked: true },
+                  });
+                }
+              } catch (leadError) {
+                // Ignorar erro ao atualizar lead
+              }
+            }
+            throw messageError;
+          }
         }
       } else {
         const message = caption;
-        await bot.api.sendMessage(parseInt(chatId), message, {
-          reply_markup: keyboard,
-          parse_mode: undefined,
-        });
+        try {
+          await bot.api.sendMessage(parseInt(chatId), message, {
+            reply_markup: keyboard,
+            parse_mode: undefined,
+          });
+        } catch (error: any) {
+          // Verificar se é erro de bloqueio
+          const isBlockedError = this.isBlockedError(error);
+          if (isBlockedError) {
+            try {
+              const lead = await prisma.lead.findFirst({
+                where: {
+                  botId,
+                  telegramChatId: chatId,
+                },
+              });
+              if (lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isBlocked: true },
+                });
+              }
+            } catch (leadError) {
+              // Ignorar erro ao atualizar lead
+            }
+          }
+          throw error;
+        }
       }
     };
 
@@ -535,7 +623,12 @@ export class BotManager {
       if (!config) {
         const botData = await prisma.bot.findUnique({
           where: { id: botId },
-          include: { paymentButtons: true },
+          include: { 
+            paymentButtons: true,
+            resendImages: {
+              orderBy: { order: "asc" },
+            },
+          },
         });
 
         if (!botData) {
@@ -553,6 +646,7 @@ export class BotManager {
           startCaption: botData.startCaption,
           resendImage: botData.resendImage,
           resendCaption: botData.resendCaption,
+          resendImages: botData.resendImages?.map((img: any) => img.imageUrl) || [],
           resendFirstDelay: botData.resendFirstDelay,
           resendInterval: botData.resendInterval,
           paymentButtons: botData.paymentButtons
@@ -612,7 +706,35 @@ export class BotManager {
         };
       }
 
-      const mediaUrl = config.resendImage || config.startImage;
+      // Buscar lead para obter o índice da imagem atual
+      const lead = await prisma.lead.findFirst({
+        where: {
+          botId,
+          telegramChatId: chatId,
+        },
+      });
+
+      // Determinar qual imagem usar (rotação)
+      let mediaUrl: string | null = null;
+      if (config.resendImages && config.resendImages.length > 0) {
+        // Usar múltiplas imagens com rotação
+        const currentIndex = lead?.resendImageIndex || 0;
+        mediaUrl = config.resendImages[currentIndex % config.resendImages.length];
+        
+        // Atualizar índice para próxima vez
+        if (lead) {
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              resendImageIndex: (currentIndex + 1) % config.resendImages.length,
+            },
+          });
+        }
+      } else {
+        // Fallback para imagem única (compatibilidade)
+        mediaUrl = config.resendImage || config.startImage;
+      }
+
       const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
       if (mediaUrl) {
@@ -637,12 +759,36 @@ export class BotManager {
                 });
               }
               mediaSent = true;
-            } catch (urlError) {
-              await bot.api.sendMessage(parseInt(chatId), captionText, {
-                reply_markup: keyboard,
-                parse_mode: undefined,
-              });
-              mediaSent = true;
+            } catch (urlError: any) {
+              // Verificar se é erro de bloqueio
+              const isBlockedError = this.isBlockedError(urlError);
+              if (isBlockedError && lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isBlocked: true },
+                });
+              }
+              // Tentar enviar apenas texto se não for bloqueio
+              if (!isBlockedError) {
+                try {
+                  await bot.api.sendMessage(parseInt(chatId), captionText, {
+                    reply_markup: keyboard,
+                    parse_mode: undefined,
+                  });
+                  mediaSent = true;
+                } catch (messageError: any) {
+                  const isBlockedError2 = this.isBlockedError(messageError);
+                  if (isBlockedError2 && lead) {
+                    await prisma.lead.update({
+                      where: { id: lead.id },
+                      data: { isBlocked: true },
+                    });
+                  }
+                  throw messageError;
+                }
+              } else {
+                throw urlError;
+              }
             }
           } else {
             try {
@@ -660,12 +806,36 @@ export class BotManager {
                 });
               }
               mediaSent = true;
-            } catch (fileError) {
-              await bot.api.sendMessage(parseInt(chatId), captionText, {
-                reply_markup: keyboard,
-                parse_mode: undefined,
-              });
-              mediaSent = true;
+            } catch (fileError: any) {
+              // Verificar se é erro de bloqueio
+              const isBlockedError = this.isBlockedError(fileError);
+              if (isBlockedError && lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isBlocked: true },
+                });
+              }
+              // Tentar enviar apenas texto se não for bloqueio
+              if (!isBlockedError) {
+                try {
+                  await bot.api.sendMessage(parseInt(chatId), captionText, {
+                    reply_markup: keyboard,
+                    parse_mode: undefined,
+                  });
+                  mediaSent = true;
+                } catch (messageError: any) {
+                  const isBlockedError2 = this.isBlockedError(messageError);
+                  if (isBlockedError2 && lead) {
+                    await prisma.lead.update({
+                      where: { id: lead.id },
+                      data: { isBlocked: true },
+                    });
+                  }
+                  throw messageError;
+                }
+              } else {
+                throw fileError;
+              }
             }
           }
         } catch (error: any) {
@@ -677,24 +847,64 @@ export class BotManager {
               });
               mediaSent = true;
             } catch (textError) {
+              // Verificar se é erro de bloqueio
+              const isBlockedError = this.isBlockedError(textError);
+              if (isBlockedError && lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isBlocked: true },
+                });
+              }
               throw textError;
             }
           }
         }
         
         if (!mediaSent) {
+          try {
+            await bot.api.sendMessage(parseInt(chatId), captionText, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          } catch (messageError: any) {
+            // Verificar se é erro de bloqueio
+            const isBlockedError = this.isBlockedError(messageError);
+            if (isBlockedError && lead) {
+              await prisma.lead.update({
+                where: { id: lead.id },
+                data: { isBlocked: true },
+              });
+            }
+            throw messageError;
+          }
+        }
+      } else {
+        try {
           await bot.api.sendMessage(parseInt(chatId), captionText, {
             reply_markup: keyboard,
             parse_mode: undefined,
           });
+        } catch (messageError: any) {
+          // Verificar se é erro de bloqueio
+          const isBlockedError = this.isBlockedError(messageError);
+          if (isBlockedError && lead) {
+            await prisma.lead.update({
+              where: { id: lead.id },
+              data: { isBlocked: true },
+            });
+          }
+          throw messageError;
         }
-      } else {
-        await bot.api.sendMessage(parseInt(chatId), captionText, {
-          reply_markup: keyboard,
-          parse_mode: undefined,
-        });
       }
     } catch (error: any) {
+      // Verificar se é erro de bloqueio no catch final
+      const isBlockedError = this.isBlockedError(error);
+      if (isBlockedError && lead) {
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { isBlocked: true },
+        });
+      }
       console.error(`[BotManager] Erro ao enviar mensagem de reenvio:`, error);
       throw error;
     }
@@ -809,7 +1019,12 @@ export class BotManager {
   async restartAllBots() {
     const activeBots = await prisma.bot.findMany({
       where: { isActive: true },
-      include: { paymentButtons: true },
+      include: { 
+        paymentButtons: true,
+        resendImages: {
+          orderBy: { order: "asc" },
+        },
+      },
     });
 
     for (const bot of activeBots) {
@@ -828,6 +1043,7 @@ export class BotManager {
         startCaption: bot.startCaption,
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
+        resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
         resendFirstDelay: bot.resendFirstDelay,
         resendInterval: bot.resendInterval,
         paymentButtons: bot.paymentButtons

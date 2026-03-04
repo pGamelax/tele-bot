@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/components/ui/use-toast"
 import { Bot } from "lucide-react"
 
-export default function SignInPage() {
+export default function SignUpPage() {
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
@@ -25,25 +27,46 @@ export default function SignInPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validações
+    if (password !== confirmPassword) {
+      toast({
+        title: "Erro",
+        description: "As senhas não coincidem",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const result = await authClient.signIn.email({
+      const result = await authClient.signUp.email({
         email,
         password,
+        name: name || undefined,
       })
 
       if (result.error) {
         toast({
           title: "Erro",
-          description: result.error.message || "Erro ao fazer login",
+          description: result.error.message || "Erro ao criar conta",
           variant: "destructive",
         })
         setIsLoading(false)
       } else {
         toast({
           title: "Sucesso",
-          description: "Login realizado com sucesso",
+          description: "Conta criada com sucesso! Redirecionando...",
         })
         await authClient.getSession()
         await new Promise((resolve) => setTimeout(resolve, 100))
@@ -52,7 +75,7 @@ export default function SignInPage() {
     } catch (error: any) {
       toast({
         title: "Erro",
-        description: error.message || "Erro ao fazer login",
+        description: error.message || "Erro ao criar conta",
         variant: "destructive",
       })
       setIsLoading(false)
@@ -73,13 +96,25 @@ export default function SignInPage() {
         
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Entrar</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">Criar Conta</CardTitle>
             <CardDescription className="text-center">
-              Faça login para acessar seu dashboard
+              Crie sua conta para começar a usar o Tele Bot
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Nome (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
+                  placeholder="Seu nome"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Email
@@ -104,15 +139,32 @@ export default function SignInPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
                   placeholder="••••••••"
+                  minLength={6}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mínimo de 6 caracteres
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Confirmar Senha
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
+                  placeholder="••••••••"
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Entrando..." : "Entrar"}
+                {isLoading ? "Criando conta..." : "Criar Conta"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">
-                Não tem uma conta?{" "}
-                <Link href="/sign-up" className="text-primary hover:underline">
-                  Criar conta
+                Já tem uma conta?{" "}
+                <Link href="/sign-in" className="text-primary hover:underline">
+                  Entrar
                 </Link>
               </div>
             </form>

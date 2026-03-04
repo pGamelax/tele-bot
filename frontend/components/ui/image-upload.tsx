@@ -36,6 +36,8 @@ export function ImageUpload({
   }, [value])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -150,7 +152,11 @@ export function ImageUpload({
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleRemove}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleRemove()
+              }}
               className="text-destructive hover:text-destructive"
             >
               <X className="h-4 w-4" />
@@ -160,13 +166,20 @@ export function ImageUpload({
       ) : (
         <div
           className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary cursor-pointer transition-colors bg-card"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            fileInputRef.current?.click()
+          }}
         >
           <input
             ref={fileInputRef}
             type="file"
             accept={accept}
             onChange={handleFileSelect}
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
             className="hidden"
           />
           {isUploading ? (

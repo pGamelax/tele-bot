@@ -38,6 +38,11 @@ export function PublicNavbar() {
                     Entrar em Contato
                   </Button>
                 </Link>
+                <Link href="/sign-up">
+                  <Button variant="outline" className="gap-2">
+                    Criar Conta
+                  </Button>
+                </Link>
                 <Link href="/sign-in">
                   <Button className="gap-2">
                     <LogIn className="h-4 w-4" />

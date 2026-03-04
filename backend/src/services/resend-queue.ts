@@ -81,6 +81,11 @@ export const resendWorker = new Worker(
         return { success: false, reason: "paused" };
       }
 
+      if (lead.isBlocked) {
+        await removeResendJobs(botId, chatId);
+        return { success: false, reason: "user_blocked" };
+      }
+
       const paidPayment = await prisma.payment.findFirst({
         where: {
           botId,
@@ -98,15 +103,20 @@ export const resendWorker = new Worker(
       try {
         await botManager.sendResendMessage(botId, chatId);
 
+        // Sempre agendar o próximo reenvio para manter o loop infinito
         const intervalMinutes = bot.resendInterval || 10;
         const interval = intervalMinutes * 60 * 1000;
         
-        const recurringJobId = `resend-${botId}-${chatId}-recurring`;
+        // Usar timestamp para garantir job único a cada execução
+        const timestamp = Date.now();
+        const recurringJobId = `resend-${botId}-${chatId}-recurring-${timestamp}`;
         
+        // Remover jobs recorrentes antigos deste chat
         const existingJobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
         for (const existingJob of existingJobs) {
-          if (existingJob.id === recurringJobId || 
-              (existingJob.data.botId === botId && existingJob.data.chatId === chatId && !existingJob.data.isFirst)) {
+          if (existingJob.data.botId === botId && 
+              existingJob.data.chatId === chatId && 
+              !existingJob.data.isFirst) {
             try {
               await existingJob.remove();
             } catch (error) {
@@ -115,8 +125,9 @@ export const resendWorker = new Worker(
           }
         }
         
+        // Agendar o próximo reenvio (sempre usando resendInterval para manter o loop)
         await resendQueue.add(
-          `resend-${botId}-${chatId}-recurring`,
+          recurringJobId,
           { botId, chatId, isFirst: false },
           {
             delay: interval,
@@ -126,6 +137,33 @@ export const resendWorker = new Worker(
 
         return { success: true };
       } catch (error: any) {
+        // Verificar se é erro de bloqueio
+        const errorCode = error?.error_code || error?.error?.error_code;
+        const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+        const isBlocked = (
+          errorCode === 403 ||
+          errorDesc.includes("bot was blocked") ||
+          errorDesc.includes("chat not found") ||
+          errorDesc.includes("user is deactivated") ||
+          errorDesc.includes("forbidden") ||
+          errorDesc.includes("blocked")
+        );
+
+        if (isBlocked) {
+          // Marcar lead como bloqueado e remover jobs
+          await prisma.lead.updateMany({
+            where: {
+              botId,
+              telegramChatId: chatId,
+            },
+            data: {
+              isBlocked: true,
+            },
+          });
+          await removeResendJobs(botId, chatId);
+          return { success: false, reason: "user_blocked" };
+        }
+
         if (error.message?.includes("não encontrada") || error.message?.includes("não encontrado")) {
           await removeResendJobs(botId, chatId);
           return { success: false, reason: "bot_not_found" };
@@ -154,26 +192,53 @@ export async function scheduleResends(
   intervalMinutes: number
 ) {
   try {
+    // Verificar se já existem jobs agendados antes de remover
+    // Se existirem, é um /start subsequente e devemos usar resendInterval
+    const existingJobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
+    const hasExistingJobs = existingJobs.some(
+      job => job.data.botId === botId && job.data.chatId === chatId
+    );
+
+    // Sempre remover todos os jobs existentes antes de agendar novos
+    // Isso garante que um novo /start cancela os reenvios anteriores
     await removeResendJobs(botId, chatId);
 
-    const firstJobId = `resend-${botId}-${chatId}-first`;
-    
-    const existingJobs = await resendQueue.getJobs(["delayed", "waiting", "active"]);
-    const hasExistingJob = existingJobs.some(
-      job => job.id === firstJobId || 
-      (job.data.botId === botId && job.data.chatId === chatId)
-    );
-    
-    if (hasExistingJob) {
+    // Verificar se o usuário já comprou ou se o lead está pausado
+    const lead = await prisma.lead.findFirst({
+      where: {
+        botId,
+        telegramChatId: chatId,
+      },
+    });
+
+    if (lead?.resendPaused) {
       return;
     }
 
-    const firstDelay = firstDelayMinutes * 60 * 1000;
+    const paidPayment = await prisma.payment.findFirst({
+      where: {
+        botId,
+        telegramChatId: chatId,
+        status: "paid",
+      },
+    });
+
+    if (paidPayment) {
+      return;
+    }
+
+    // Se já existiam jobs agendados, é um /start subsequente
+    // Usar resendInterval em vez de resendFirstDelay
+    const delayToUse = hasExistingJobs ? intervalMinutes : firstDelayMinutes;
+    const timestamp = Date.now();
+    const firstJobId = `resend-${botId}-${chatId}-first-${timestamp}`;
+    const delay = delayToUse * 60 * 1000;
+    
     await resendQueue.add(
-      `resend-${botId}-${chatId}-first`,
+      firstJobId,
       { botId, chatId, isFirst: true },
       {
-        delay: firstDelay,
+        delay: delay,
         jobId: firstJobId,
       }
     );
@@ -249,6 +314,7 @@ export async function rescheduleBotResends(botId: string) {
         botId,
         convertedAt: null,
         resendPaused: false,
+        isBlocked: false,
       },
     });
 
@@ -311,6 +377,10 @@ export async function restoreResends() {
     }
 
     if ((lead as any).resendPaused === true) {
+      continue;
+    }
+
+    if ((lead as any).isBlocked === true) {
       continue;
     }
 
