@@ -22,6 +22,13 @@ else
   fi
 fi
 
+# Aplicar correção do providerAccountId se necessário
+echo "🔧 Verificando e aplicando correção do providerAccountId..."
+if [ -f "./scripts/apply-fix-provider-account-id.ts" ]; then
+  echo "📝 Aplicando correção do providerAccountId..."
+  bun run scripts/apply-fix-provider-account-id.ts || echo "⚠️  Correção já aplicada ou erro (pode ser normal)"
+fi
+
 echo "✅ Migrações aplicadas com sucesso!"
 echo "🚀 Iniciando servidor..."
 # Bun pode executar TypeScript diretamente, não precisa de build

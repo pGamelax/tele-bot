@@ -78,6 +78,10 @@ export default function SignUpPage() {
         } else if (errorMessage.toLowerCase().includes("invalid email") || 
                    errorMessage.toLowerCase().includes("email inválido")) {
           errorMessage = "Por favor, insira um email válido."
+        } else if (errorMessage.toLowerCase().includes("provideraccountid") ||
+                   errorMessage.toLowerCase().includes("constraint") ||
+                   errorMessage.toLowerCase().includes("unique constraint")) {
+          errorMessage = "Erro ao criar conta. Por favor, tente novamente ou entre em contato com o suporte."
         }
         
         toast({
@@ -97,9 +101,18 @@ export default function SignUpPage() {
       }
     } catch (error: any) {
       console.error("Erro ao criar conta (catch):", error)
+      let errorMessage = "Erro ao criar conta. Por favor, tente novamente."
+      
+      // Verificar se é um erro HTTP
+      if (error.status === 500) {
+        errorMessage = "Erro interno do servidor. Por favor, tente novamente mais tarde ou entre em contato com o suporte."
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       toast({
         title: "Erro",
-        description: error.message || error.toString() || "Erro ao criar conta",
+        description: errorMessage,
         variant: "destructive",
       })
       setIsLoading(false)

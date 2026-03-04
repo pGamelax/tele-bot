@@ -83,6 +83,23 @@ const app = new Elysia()
     allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
     exposeHeaders: ["Content-Type", "Set-Cookie"],
   }))
+  .onError(({ code, error, set }) => {
+    console.error(`[Elysia Error] ${code}:`, error);
+    if (code === "NOT_FOUND") {
+      set.status = 404;
+      return { error: "Not found" };
+    }
+    if (code === "VALIDATION") {
+      set.status = 400;
+      return { error: "Validation error", details: error.message };
+    }
+    set.status = 500;
+    return { 
+      error: "Internal server error", 
+      message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+    };
+  })
   .use(swagger())
   .decorate("db", prisma)
   .mount(auth.handler)
