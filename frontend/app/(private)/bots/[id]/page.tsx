@@ -152,9 +152,13 @@ export default function EditBotPage() {
   })
 
   const [resendImages, setResendImages] = useState<string[]>([])
+  const [resendCaptions, setResendCaptions] = useState<string[]>([])
   const [paymentButtons, setPaymentButtons] = useState<Array<{ text: string; value: number }>>([])
   const [resendPaymentButtons, setResendPaymentButtons] = useState<
     Array<{ text: string; value: number }>
+  >([])
+  const [resendButtonGroups, setResendButtonGroups] = useState<
+    Array<Array<{ text: string; value: number }>>
   >([])
   const [activeTab, setActiveTab] = useState<"info" | "basic" | "start" | "resend" | "advanced">("info")
 
@@ -191,6 +195,18 @@ export default function EditBotPage() {
       setResendImages(
         bot.resendImages?.map((img) => img.imageUrl) || []
       )
+      setResendCaptions(
+        (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || []
+      )
+      // Parse dos grupos de botões (JSON)
+      const buttonGroups = (bot as any).resendButtonGroups?.map((group: any) => {
+        try {
+          return JSON.parse(group.buttons)
+        } catch {
+          return []
+        }
+      }) || []
+      setResendButtonGroups(buttonGroups)
     }
   }, [bot])
 
@@ -202,8 +218,10 @@ export default function EditBotPage() {
         id: botId,
         ...formData,
         resendImages,
+        resendCaptions,
         paymentButtons,
         resendPaymentButtons,
+        resendButtonGroups,
       })
       toast({
         title: "Sucesso",
@@ -245,6 +263,48 @@ export default function EditBotPage() {
     const updated = [...resendPaymentButtons]
     updated[index] = { ...updated[index], [field]: value }
     setResendPaymentButtons(updated)
+  }
+
+  // Funções para gerenciar múltiplos textos
+  const addResendCaption = () => {
+    setResendCaptions([...resendCaptions, ""])
+  }
+
+  const removeResendCaption = (index: number) => {
+    setResendCaptions(resendCaptions.filter((_, i) => i !== index))
+  }
+
+  const updateResendCaption = (index: number, value: string) => {
+    const updated = [...resendCaptions]
+    updated[index] = value
+    setResendCaptions(updated)
+  }
+
+  // Funções para gerenciar grupos de botões
+  const addResendButtonGroup = () => {
+    setResendButtonGroups([...resendButtonGroups, []])
+  }
+
+  const removeResendButtonGroup = (groupIndex: number) => {
+    setResendButtonGroups(resendButtonGroups.filter((_, i) => i !== groupIndex))
+  }
+
+  const addButtonToGroup = (groupIndex: number) => {
+    const updated = [...resendButtonGroups]
+    updated[groupIndex] = [...updated[groupIndex], { text: "", value: 0 }]
+    setResendButtonGroups(updated)
+  }
+
+  const removeButtonFromGroup = (groupIndex: number, buttonIndex: number) => {
+    const updated = [...resendButtonGroups]
+    updated[groupIndex] = updated[groupIndex].filter((_, i) => i !== buttonIndex)
+    setResendButtonGroups(updated)
+  }
+
+  const updateButtonInGroup = (groupIndex: number, buttonIndex: number, field: string, value: string | number) => {
+    const updated = [...resendButtonGroups]
+    updated[groupIndex][buttonIndex] = { ...updated[groupIndex][buttonIndex], [field]: value }
+    setResendButtonGroups(updated)
   }
 
   if (isLoading) {
@@ -506,9 +566,9 @@ export default function EditBotPage() {
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
                   <p className="text-sm text-foreground font-medium mb-1">💡 Como funciona a rotação</p>
                   <p className="text-xs text-muted-foreground">
-                    Se você adicionar 3 imagens, o sistema enviará a imagem 1 no primeiro reenvio, 
-                    imagem 2 no segundo, imagem 3 no terceiro, e depois volta para a imagem 1, 
-                    sempre respeitando o intervalo de tempo configurado.
+                    Você pode adicionar múltiplas imagens, textos e grupos de botões. O sistema rotacionará automaticamente:
+                    imagem 1, texto 1, botões 1 no primeiro reenvio; imagem 2, texto 2, botões 2 no segundo; e assim por diante.
+                    Se houver quantidades diferentes, o sistema usará o índice módulo para rotacionar independentemente.
                   </p>
                 </div>
 
@@ -519,14 +579,43 @@ export default function EditBotPage() {
                 />
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Legenda para Reenvios</label>
-                  <textarea
-                    value={formData.resendCaption}
-                    onChange={(e) => setFormData({ ...formData, resendCaption: e.target.value })}
-                    rows={4}
-                    placeholder="Digite a mensagem que será exibida junto com as imagens de remarketing..."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                  />
+                  <label className="block text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Textos de Remarketing (Rotação)
+                  </label>
+                  <div className="space-y-3">
+                    {resendCaptions.map((caption, index) => (
+                      <div key={index} className="flex gap-2 items-start">
+                        <div className="flex-1">
+                          <textarea
+                            value={caption}
+                            onChange={(e) => updateResendCaption(index, e.target.value)}
+                            rows={3}
+                            placeholder={`Texto ${index + 1} - Digite a mensagem que será exibida...`}
+                            className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeResendCaption(index)}
+                          className="shrink-0 mt-0.5"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" onClick={addResendCaption} className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Texto
+                    </Button>
+                  </div>
+                  {resendCaptions.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Se não adicionar textos, será usado o campo "Legenda para Reenvios" (compatibilidade).
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -567,40 +656,110 @@ export default function EditBotPage() {
                 <div className="border-t border-border pt-4">
                   <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
-                    Botões de Pagamento de Reenvio
+                    Grupos de Botões de Pagamento (Rotação)
                   </label>
-                  <div className="space-y-2">
-                    {resendPaymentButtons.map((btn, index) => (
-                      <div key={index} className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          placeholder="Texto do botão (ex: Comprar Agora)"
-                          value={btn.text}
-                          onChange={(e) => updateResendPaymentButton(index, "text", e.target.value)}
-                          className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                        />
-                        <PriceInput
-                          value={btn.value}
-                          onChange={(value) => updateResendPaymentButton(index, "value", value)}
-                          placeholder="R$ 0,00"
-                          className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeResendPaymentButton(index)}
-                          className="shrink-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                  <div className="space-y-4">
+                    {resendButtonGroups.map((group, groupIndex) => (
+                      <div key={groupIndex} className="border border-border rounded-lg p-4 bg-card/50">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium text-foreground">Grupo {groupIndex + 1}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removeResendButtonGroup(groupIndex)}
+                            className="shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {group.map((btn, buttonIndex) => (
+                            <div key={buttonIndex} className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                placeholder="Texto do botão (ex: Comprar Agora)"
+                                value={btn.text}
+                                onChange={(e) => updateButtonInGroup(groupIndex, buttonIndex, "text", e.target.value)}
+                                className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                              />
+                              <PriceInput
+                                value={btn.value}
+                                onChange={(value) => updateButtonInGroup(groupIndex, buttonIndex, "value", value)}
+                                placeholder="R$ 0,00"
+                                className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => removeButtonFromGroup(groupIndex, buttonIndex)}
+                                className="shrink-0"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => addButtonToGroup(groupIndex)}
+                            className="w-full"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Adicionar Botão ao Grupo
+                          </Button>
+                        </div>
                       </div>
                     ))}
-                    <Button type="button" variant="outline" onClick={addResendPaymentButton} className="w-full">
+                    <Button type="button" variant="outline" onClick={addResendButtonGroup} className="w-full">
                       <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Botão de Pagamento
+                      Adicionar Grupo de Botões
                     </Button>
                   </div>
+                  {resendButtonGroups.length === 0 && (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Botões de Pagamento de Reenvio (Compatibilidade)
+                      </label>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Se não adicionar grupos de botões, será usado este campo (compatibilidade).
+                      </p>
+                      <div className="space-y-2">
+                        {resendPaymentButtons.map((btn, index) => (
+                          <div key={index} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              placeholder="Texto do botão (ex: Comprar Agora)"
+                              value={btn.text}
+                              onChange={(e) => updateResendPaymentButton(index, "text", e.target.value)}
+                              className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                            />
+                            <PriceInput
+                              value={btn.value}
+                              onChange={(value) => updateResendPaymentButton(index, "value", value)}
+                              placeholder="R$ 0,00"
+                              className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeResendPaymentButton(index)}
+                              className="shrink-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" onClick={addResendPaymentButton} className="w-full">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar Botão de Pagamento
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

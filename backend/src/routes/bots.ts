@@ -308,6 +308,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           resendImages: {
             orderBy: { order: "asc" },
           },
+          resendCaptions: {
+            orderBy: { order: "asc" },
+          },
+          resendButtonGroups: {
+            orderBy: { order: "asc" },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -330,6 +336,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         include: {
           paymentButtons: true,
           resendImages: {
+            orderBy: { order: "asc" },
+          },
+          resendCaptions: {
+            orderBy: { order: "asc" },
+          },
+          resendButtonGroups: {
             orderBy: { order: "asc" },
           },
         },
@@ -369,10 +381,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         resendImage,
         resendCaption,
         resendImages,
+        resendCaptions,
         resendFirstDelay,
         resendInterval,
         paymentButtons,
         resendPaymentButtons,
+        resendButtonGroups,
         facebookPixelId,
         facebookAccessToken,
         paymentConfirmedMessage,
@@ -386,10 +400,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         resendImage?: string;
         resendCaption?: string;
         resendImages?: string[];
+        resendCaptions?: string[];
         resendFirstDelay?: number;
         resendInterval?: number;
         paymentButtons?: Array<{ text: string; value: number }>;
         resendPaymentButtons?: Array<{ text: string; value: number }>;
+        resendButtonGroups?: Array<Array<{ text: string; value: number }>>;
         facebookPixelId?: string;
         facebookAccessToken?: string;
         paymentConfirmedMessage?: string;
@@ -430,16 +446,43 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
               order: index,
             })),
           },
+          resendCaptions: {
+            create: (resendCaptions || []).map((caption, index) => ({
+              captionText: caption,
+              order: index,
+            })),
+          },
+          resendButtonGroups: {
+            create: (resendButtonGroups || []).map((group, index) => ({
+              buttons: JSON.stringify(group),
+              order: index,
+            })),
+          },
         } as any,
         include: {
           paymentButtons: true,
           resendImages: {
             orderBy: { order: "asc" },
           },
+          resendCaptions: {
+            orderBy: { order: "asc" },
+          },
+          resendButtonGroups: {
+            orderBy: { order: "asc" },
+          },
         },
       }) as any;
 
       // Iniciar bot no Telegram
+      // Parse dos grupos de botões (JSON)
+      const buttonGroups = (bot as any).resendButtonGroups?.map((group: any) => {
+        try {
+          return JSON.parse(group.buttons);
+        } catch {
+          return [];
+        }
+      }) || [];
+
       await botManager.startBot(bot.id, bot.telegramToken, {
         syncpayApiKey: bot.syncpayApiKey,
         syncpayApiSecret: bot.syncpayApiSecret,
@@ -448,6 +491,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
         resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
+        resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
         resendFirstDelay: bot.resendFirstDelay || 20,
         resendInterval: bot.resendInterval || 10,
         paymentButtons: bot.paymentButtons
@@ -462,6 +506,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
             text: btn.text,
             value: btn.value,
           })),
+        resendButtonGroups: buttonGroups,
         paymentConfirmedMessage: bot.paymentConfirmedMessage,
       });
 
@@ -488,10 +533,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         resendImage,
         resendCaption,
         resendImages,
+        resendCaptions,
         resendFirstDelay,
         resendInterval,
         paymentButtons,
         resendPaymentButtons,
+        resendButtonGroups,
         isActive,
         facebookPixelId,
         facebookAccessToken,
@@ -506,10 +553,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         resendImage?: string;
         resendCaption?: string;
         resendImages?: string[];
+        resendCaptions?: string[];
         resendFirstDelay?: number;
         resendInterval?: number;
         paymentButtons?: Array<{ text: string; value: number }>;
         resendPaymentButtons?: Array<{ text: string; value: number }>;
+        resendButtonGroups?: Array<Array<{ text: string; value: number }>>;
         isActive?: boolean;
         facebookPixelId?: string;
         facebookAccessToken?: string;
@@ -543,6 +592,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         include: {
           paymentButtons: true,
           resendImages: {
+            orderBy: { order: "asc" },
+          },
+          resendCaptions: {
+            orderBy: { order: "asc" },
+          },
+          resendButtonGroups: {
             orderBy: { order: "asc" },
           },
         },
@@ -602,8 +657,61 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         });
       }
 
+      // Atualizar textos de remarketing
+      if (resendCaptions !== undefined) {
+        await prisma.resendCaption.deleteMany({
+          where: { botId: params.id },
+        });
+
+        if (resendCaptions.length > 0) {
+          await prisma.resendCaption.createMany({
+            data: resendCaptions.map((caption, index) => ({
+              botId: params.id,
+              captionText: caption,
+              order: index,
+            })),
+          });
+        }
+
+        bot.resendCaptions = await prisma.resendCaption.findMany({
+          where: { botId: params.id },
+          orderBy: { order: "asc" },
+        });
+      }
+
+      // Atualizar grupos de botões de remarketing
+      if (resendButtonGroups !== undefined) {
+        await prisma.resendButtonGroup.deleteMany({
+          where: { botId: params.id },
+        });
+
+        if (resendButtonGroups.length > 0) {
+          await prisma.resendButtonGroup.createMany({
+            data: resendButtonGroups.map((group, index) => ({
+              botId: params.id,
+              buttons: JSON.stringify(group),
+              order: index,
+            })),
+          });
+        }
+
+        bot.resendButtonGroups = await prisma.resendButtonGroup.findMany({
+          where: { botId: params.id },
+          orderBy: { order: "asc" },
+        });
+      }
+
       // Reiniciar bot se estiver ativo
       if (bot.isActive) {
+        // Parse dos grupos de botões (JSON)
+        const buttonGroups = (bot as any).resendButtonGroups?.map((group: any) => {
+          try {
+            return JSON.parse(group.buttons);
+          } catch {
+            return [];
+          }
+        }) || [];
+
         await botManager.startBot(bot.id, bot.telegramToken, {
           syncpayApiKey: bot.syncpayApiKey,
           syncpayApiSecret: bot.syncpayApiSecret,
@@ -612,6 +720,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           resendImage: bot.resendImage,
           resendCaption: bot.resendCaption,
           resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
+          resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
           resendFirstDelay: bot.resendFirstDelay || 20,
           resendInterval: bot.resendInterval || 10,
           paymentButtons: bot.paymentButtons
@@ -626,6 +735,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
               text: btn.text,
               value: btn.value,
             })),
+          resendButtonGroups: buttonGroups,
           paymentConfirmedMessage: bot.paymentConfirmedMessage,
         });
       }

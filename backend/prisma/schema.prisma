@@ -104,6 +104,8 @@ model Bot {
 
   paymentButtons PaymentButton[]
   resendImages   ResendImage[]
+  resendCaptions ResendCaption[]
+  resendButtonGroups ResendButtonGroup[]
   leads          Lead[]
   payments       Payment[]
 
@@ -121,6 +123,34 @@ model ResendImage {
   bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("resend_images")
+  @@index([botId, order])
+}
+
+model ResendCaption {
+  id          String   @id @default(cuid())
+  botId       String
+  captionText String   @db.Text // Texto da legenda
+  order       Int      @default(0) // Ordem de exibição
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("resend_captions")
+  @@index([botId, order])
+}
+
+model ResendButtonGroup {
+  id          String   @id @default(cuid())
+  botId       String
+  buttons     String   @db.Text // JSON array de botões: [{"text": "Comprar", "value": 1290}, ...]
+  order       Int      @default(0) // Ordem de exibição
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("resend_button_groups")
   @@index([botId, order])
 }
 
@@ -168,6 +198,8 @@ model Lead {
   convertedAt     DateTime? // Quando se tornou cliente (comprou)
   resendPaused    Boolean  @default(false) // Se o reenvio está pausado manualmente
   resendImageIndex Int     @default(0) // Índice da imagem atual para rotação
+  resendCaptionIndex Int   @default(0) // Índice do texto atual para rotação
+  resendButtonIndex Int    @default(0) // Índice do grupo de botões atual para rotação
   isBlocked       Boolean  @default(false) // Se o usuário bloqueou o bot
   // Rastreamento Facebook Ads / UTM
   utmSource       String?  // utm_source (ex: facebook, google)

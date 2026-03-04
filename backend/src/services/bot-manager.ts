@@ -15,10 +15,12 @@ interface BotConfig {
   resendImage?: string | null;
   resendCaption?: string | null;
   resendImages?: string[];
+  resendCaptions?: string[]; // Múltiplos textos para rotação
   resendFirstDelay?: number;
   resendInterval?: number;
   paymentButtons: Array<{ text: string; value: number }>;
   resendPaymentButtons?: Array<{ text: string; value: number }>;
+  resendButtonGroups?: Array<Array<{ text: string; value: number }>>; // Grupos de botões para rotação
   paymentConfirmedMessage?: string | null;
 }
 
@@ -628,6 +630,12 @@ export class BotManager {
             resendImages: {
               orderBy: { order: "asc" },
             },
+            resendCaptions: {
+              orderBy: { order: "asc" },
+            },
+            resendButtonGroups: {
+              orderBy: { order: "asc" },
+            },
           },
         });
 
@@ -639,6 +647,15 @@ export class BotManager {
           throw new Error(`Bot ${botId} está inativo`);
         }
 
+        // Parse dos grupos de botões (JSON)
+        const buttonGroups = (botData as any).resendButtonGroups?.map((group: any) => {
+          try {
+            return JSON.parse(group.buttons);
+          } catch {
+            return [];
+          }
+        }) || [];
+
         config = {
           syncpayApiKey: botData.syncpayApiKey,
           syncpayApiSecret: botData.syncpayApiSecret,
@@ -647,6 +664,7 @@ export class BotManager {
           resendImage: botData.resendImage,
           resendCaption: botData.resendCaption,
           resendImages: botData.resendImages?.map((img: any) => img.imageUrl) || [],
+          resendCaptions: (botData as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
           resendFirstDelay: botData.resendFirstDelay,
           resendInterval: botData.resendInterval,
           paymentButtons: botData.paymentButtons
@@ -661,6 +679,7 @@ export class BotManager {
               text: btn.text,
               value: btn.value,
             })),
+          resendButtonGroups: buttonGroups,
           paymentConfirmedMessage: botData.paymentConfirmedMessage,
         };
 
@@ -690,11 +709,39 @@ export class BotManager {
         }
       }
 
+      // Buscar lead para obter os índices de rotação
+      const lead = await prisma.lead.findFirst({
+        where: {
+          botId,
+          telegramChatId: chatId,
+        },
+      });
+
+      // Determinar qual grupo de botões usar (rotação)
+      let buttonsToUse: Array<{ text: string; value: number }> | undefined = undefined;
+      if (config.resendButtonGroups && config.resendButtonGroups.length > 0) {
+        // Usar múltiplos grupos de botões com rotação
+        const currentButtonIndex = lead?.resendButtonIndex || 0;
+        buttonsToUse = config.resendButtonGroups[currentButtonIndex % config.resendButtonGroups.length];
+        
+        // Atualizar índice para próxima vez
+        if (lead) {
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              resendButtonIndex: (currentButtonIndex + 1) % config.resendButtonGroups.length,
+            },
+          });
+        }
+      } else if (config.resendPaymentButtons && config.resendPaymentButtons.length > 0) {
+        // Fallback para botões de reenvio únicos (compatibilidade)
+        buttonsToUse = config.resendPaymentButtons;
+      } else {
+        // Fallback para botões de início
+        buttonsToUse = config.paymentButtons;
+      }
+
       let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
-      const buttonsToUse = config.resendPaymentButtons && config.resendPaymentButtons.length > 0 
-        ? config.resendPaymentButtons 
-        : config.paymentButtons;
-      
       if (buttonsToUse && buttonsToUse.length > 0) {
         keyboard = {
           inline_keyboard: buttonsToUse.map((btn) => [
@@ -706,27 +753,19 @@ export class BotManager {
         };
       }
 
-      // Buscar lead para obter o índice da imagem atual
-      const lead = await prisma.lead.findFirst({
-        where: {
-          botId,
-          telegramChatId: chatId,
-        },
-      });
-
       // Determinar qual imagem usar (rotação)
       let mediaUrl: string | null = null;
       if (config.resendImages && config.resendImages.length > 0) {
         // Usar múltiplas imagens com rotação
-        const currentIndex = lead?.resendImageIndex || 0;
-        mediaUrl = config.resendImages[currentIndex % config.resendImages.length];
+        const currentImageIndex = lead?.resendImageIndex || 0;
+        mediaUrl = config.resendImages[currentImageIndex % config.resendImages.length];
         
         // Atualizar índice para próxima vez
         if (lead) {
           await prisma.lead.update({
             where: { id: lead.id },
             data: {
-              resendImageIndex: (currentIndex + 1) % config.resendImages.length,
+              resendImageIndex: (currentImageIndex + 1) % config.resendImages.length,
             },
           });
         }
@@ -735,7 +774,27 @@ export class BotManager {
         mediaUrl = config.resendImage || config.startImage;
       }
 
-      const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      // Determinar qual texto usar (rotação)
+      let captionText: string;
+      if (config.resendCaptions && config.resendCaptions.length > 0) {
+        // Usar múltiplos textos com rotação
+        const currentCaptionIndex = lead?.resendCaptionIndex || 0;
+        captionText = config.resendCaptions[currentCaptionIndex % config.resendCaptions.length];
+        
+        // Atualizar índice para próxima vez
+        if (lead) {
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              resendCaptionIndex: (currentCaptionIndex + 1) % config.resendCaptions.length,
+            },
+          });
+        }
+      } else {
+        // Fallback para texto único (compatibilidade)
+        captionText = config.resendCaption || config.startCaption || "Bem-vindo!";
+      }
+      captionText = captionText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
       if (mediaUrl) {
         let mediaSent = false;
@@ -1024,6 +1083,12 @@ export class BotManager {
         resendImages: {
           orderBy: { order: "asc" },
         },
+        resendCaptions: {
+          orderBy: { order: "asc" },
+        },
+        resendButtonGroups: {
+          orderBy: { order: "asc" },
+        },
       },
     });
 
@@ -1036,6 +1101,15 @@ export class BotManager {
     for (let i = 0; i < activeBots.length; i++) {
       const bot = activeBots[i];
       try {
+        // Parse dos grupos de botões (JSON)
+        const buttonGroups = (bot as any).resendButtonGroups?.map((group: any) => {
+          try {
+            return JSON.parse(group.buttons);
+          } catch {
+            return [];
+          }
+        }) || [];
+
         await this.startBot(bot.id, bot.telegramToken, {
         syncpayApiKey: bot.syncpayApiKey,
         syncpayApiSecret: bot.syncpayApiSecret,
@@ -1044,6 +1118,7 @@ export class BotManager {
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
         resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
+        resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
         resendFirstDelay: bot.resendFirstDelay,
         resendInterval: bot.resendInterval,
         paymentButtons: bot.paymentButtons
@@ -1058,6 +1133,7 @@ export class BotManager {
             text: btn.text,
             value: btn.value,
           })),
+        resendButtonGroups: buttonGroups,
         paymentConfirmedMessage: bot.paymentConfirmedMessage,
         });
       } catch (error: any) {
