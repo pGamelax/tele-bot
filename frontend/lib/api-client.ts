@@ -74,6 +74,8 @@ export interface Bot {
   resendImage?: string | null
   resendCaption?: string | null
   resendImages?: Array<{ id: string; imageUrl: string; order: number }>
+  resendCaptions?: Array<{ id: string; captionText: string; order: number }>
+  resendButtonGroups?: Array<{ id: string; buttons: string; order: number }>
   resendFirstDelay: number
   resendInterval: number
   isActive: boolean
@@ -205,6 +207,7 @@ interface BotInput {
   resendImage?: string | null
   resendCaption?: string | null
   resendImages?: string[]
+  resendCaptions?: string[]
   resendFirstDelay?: number
   resendInterval?: number
   isActive?: boolean
@@ -213,6 +216,7 @@ interface BotInput {
   paymentConfirmedMessage?: string | null
   paymentButtons?: Array<{ text: string; value: number }>
   resendPaymentButtons?: Array<{ text: string; value: number }>
+  resendButtonGroups?: Array<Array<{ text: string; value: number }>>
 }
 
 export function useCreateBot() {
