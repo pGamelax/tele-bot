@@ -157,6 +157,9 @@ export default function PaymentsPage() {
         .reduce((sum, p) => sum + p.amount, 0),
     }
 
+    // Valor líquido descontando R$ 0,75 (75 centavos) de cada venda
+    const netRevenue = totalRevenue - (pixPaid * 75)
+
     return {
       pixGenerated,
       pixPaid,
@@ -170,6 +173,7 @@ export default function PaymentsPage() {
       refunds,
       conversionRate,
       paymentMethods,
+      netRevenue,
     }
   }, [filteredPayments])
 
@@ -286,7 +290,7 @@ export default function PaymentsPage() {
           {/* Conteúdo Principal */}
           <div className="lg:col-span-2 space-y-6">
             {/* Cards de Métricas Principais */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* PIX GERADOS */}
               <Card>
                 <CardContent className="pt-3 px-3 sm:pt-6 sm:px-6">
@@ -331,6 +335,36 @@ export default function PaymentsPage() {
                       .filter((p) => p.status === "pending")
                       .reduce((sum, p) => sum + p.amount, 0)
                   )}</p>
+                </CardContent>
+              </Card>
+
+              {/* VALOR GERAL DE VENDAS */}
+              <Card>
+                <CardContent className="pt-3 px-3 sm:pt-6 sm:px-6">
+                  <div className="flex items-center justify-between mb-2 sm:mb-4">
+                    <div className="h-12 w-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <DollarSign className="h-6 w-6 text-purple-500" />
+                    </div>
+                    <TrendingUp className="h-4 w-4 text-purple-500" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">VALOR GERAL DE VENDAS</p>
+                  <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(metrics.totalRevenue)}</p>
+                  <p className="text-xs text-muted-foreground">{metrics.pixPaid} vendas realizadas</p>
+                </CardContent>
+              </Card>
+
+              {/* VALOR LÍQUIDO */}
+              <Card>
+                <CardContent className="pt-3 px-3 sm:pt-6 sm:px-6">
+                  <div className="flex items-center justify-between mb-2 sm:mb-4">
+                    <div className="h-12 w-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Target className="h-6 w-6 text-emerald-500" />
+                    </div>
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">VALOR LÍQUIDO</p>
+                  <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(metrics.netRevenue)}</p>
+                  <p className="text-xs text-muted-foreground">Descontado R$ 0,75 por venda</p>
                 </CardContent>
               </Card>
             </div>
