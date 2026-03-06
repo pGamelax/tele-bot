@@ -547,157 +547,294 @@ export default function LeadsPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">NOME / EMAIL</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">ID</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">CÓD. VENDAS</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">PLANO</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">BOT</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">FLUXO</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">STATUS</th>
-                          <th className="px-4 py-3 text-left text-xs sm:text-sm font-medium text-foreground">DATA</th>
-                          <th className="px-4 py-3 text-right text-xs sm:text-sm font-medium text-foreground">AÇÕES</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredLeads.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-muted/30">
-                            <td className="px-4 py-3">
-                              <div>
-                                <div className="font-medium text-foreground">
-                                  {lead.firstName || lead.telegramUsername || "Usuário"}
-                                  {lead.lastName && ` ${lead.lastName}`}
+              <>
+                {/* Desktop Table View */}
+                <Card className="hidden lg:block">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">NOME / EMAIL</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">ID</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">CÓD. VENDAS</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">PLANO</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">BOT</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">FLUXO</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">STATUS</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">DATA</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-foreground">AÇÕES</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {filteredLeads.map((lead) => (
+                            <tr key={lead.id} className="hover:bg-muted/30">
+                              <td className="px-4 py-3">
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {lead.firstName || lead.telegramUsername || "Usuário"}
+                                    {lead.lastName && ` ${lead.lastName}`}
+                                  </div>
+                                  {lead.telegramUsername && (
+                                    <div className="text-xs text-muted-foreground">@{lead.telegramUsername}</div>
+                                  )}
                                 </div>
-                                {lead.telegramUsername && (
-                                  <div className="text-xs text-muted-foreground">@{lead.telegramUsername}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-muted-foreground font-mono">
+                                  {lead.telegramChatId}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-muted-foreground">
+                                  {lead.paymentCode ? lead.paymentCode.substring(0, 8) + "..." : "-"}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-foreground">
+                                  {getPaymentPlan(lead)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-foreground">
+                                  {lead.bot.name}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-muted-foreground">
+                                  {lead.utmCampaign || "-"}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {lead.isNew && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
+                                      Novo
+                                    </span>
+                                  )}
+                                  {lead.hasPaid && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-teal-500/10 text-teal-500 rounded-full">
+                                      Pago
+                                    </span>
+                                  )}
+                                  {lead.convertedAt && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
+                                      Convertido
+                                    </span>
+                                  )}
+                                  {lead.isBlocked && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
+                                      Bloqueado
+                                    </span>
+                                  )}
+                                  {lead.resendPaused && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-orange-500/10 text-orange-500 rounded-full">
+                                      Pausado
+                                    </span>
+                                  )}
+                                  {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
+                                      Pendente
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-sm text-muted-foreground">
+                                  {formatDateShort(lead.createdAt)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56">
+                                    {lead.isNew && (
+                                      <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
+                                        <Check className="h-4 w-4 mr-2" />
+                                        Marcar como Contatado
+                                      </DropdownMenuItem>
+                                    )}
+                                    {!lead.convertedAt && (
+                                      <>
+                                        <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
+                                          <Check className="h-4 w-4 mr-2" />
+                                          Marcar como Convertido
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
+                                          className={lead.resendPaused ? "text-green-500" : "text-orange-500"}
+                                        >
+                                          {lead.resendPaused ? (
+                                            <>
+                                              <Play className="h-4 w-4 mr-2" />
+                                              Retomar Reenvio
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Pause className="h-4 w-4 mr-2" />
+                                              Pausar Reenvio
+                                            </>
+                                          )}
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {(lead.isNew || !lead.convertedAt) && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem
+                                      onClick={() => handleDelete(lead.id)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Deletar
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-3">
+                  {filteredLeads.map((lead) => (
+                    <Card key={lead.id}>
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-foreground mb-1">
+                                {lead.firstName || lead.telegramUsername || "Usuário"}
+                                {lead.lastName && ` ${lead.lastName}`}
+                              </div>
+                              {lead.telegramUsername && (
+                                <div className="text-xs text-muted-foreground mb-2">@{lead.telegramUsername}</div>
+                              )}
+                              <div className="text-xs text-muted-foreground font-mono break-all">
+                                ID: {lead.telegramChatId}
+                              </div>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                {lead.isNew && (
+                                  <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Marcar como Contatado
+                                  </DropdownMenuItem>
                                 )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-muted-foreground font-mono">
-                                {lead.telegramChatId}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-muted-foreground">
+                                {!lead.convertedAt && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
+                                      <Check className="h-4 w-4 mr-2" />
+                                      Marcar como Convertido
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
+                                      className={lead.resendPaused ? "text-green-500" : "text-orange-500"}
+                                    >
+                                      {lead.resendPaused ? (
+                                        <>
+                                          <Play className="h-4 w-4 mr-2" />
+                                          Retomar Reenvio
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Pause className="h-4 w-4 mr-2" />
+                                          Pausar Reenvio
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {(lead.isNew || !lead.convertedAt) && <DropdownMenuSeparator />}
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(lead.id)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Deletar
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Cód. Vendas:</span>
+                              <div className="text-foreground font-mono text-xs">
                                 {lead.paymentCode ? lead.paymentCode.substring(0, 8) + "..." : "-"}
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-foreground">
-                                {getPaymentPlan(lead)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-foreground">
-                                {lead.bot.name}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-muted-foreground">
-                                {lead.utmCampaign || "-"}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {lead.isNew && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                    Novo
-                                  </span>
-                                )}
-                                {lead.hasPaid && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-teal-500/10 text-teal-500 rounded-full">
-                                    Pago
-                                  </span>
-                                )}
-                                {lead.convertedAt && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                    Convertido
-                                  </span>
-                                )}
-                                {lead.isBlocked && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                    Bloqueado
-                                  </span>
-                                )}
-                                {lead.resendPaused && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-orange-500/10 text-orange-500 rounded-full">
-                                    Pausado
-                                  </span>
-                                )}
-                                {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                    Pendente
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-xs sm:text-sm text-muted-foreground">
-                                {formatDateShort(lead.createdAt)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56">
-                                  {lead.isNew && (
-                                    <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
-                                      <Check className="h-4 w-4 mr-2" />
-                                      Marcar como Contatado
-                                    </DropdownMenuItem>
-                                  )}
-                                  {!lead.convertedAt && (
-                                    <>
-                                      <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
-                                        <Check className="h-4 w-4 mr-2" />
-                                        Marcar como Convertido
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
-                                        className={lead.resendPaused ? "text-green-500" : "text-orange-500"}
-                                      >
-                                        {lead.resendPaused ? (
-                                          <>
-                                            <Play className="h-4 w-4 mr-2" />
-                                            Retomar Reenvio
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Pause className="h-4 w-4 mr-2" />
-                                            Pausar Reenvio
-                                          </>
-                                        )}
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                  {(lead.isNew || !lead.convertedAt) && <DropdownMenuSeparator />}
-                                  <DropdownMenuItem
-                                    onClick={() => handleDelete(lead.id)}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Deletar
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Plano:</span>
+                              <div className="text-foreground">{getPaymentPlan(lead)}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Bot:</span>
+                              <div className="text-foreground">{lead.bot.name}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Data:</span>
+                              <div className="text-foreground">{formatDateShort(lead.createdAt)}</div>
+                            </div>
+                          </div>
+
+                          {lead.utmCampaign && (
+                            <div>
+                              <span className="text-muted-foreground text-sm">Fluxo: </span>
+                              <span className="text-foreground text-sm">{lead.utmCampaign}</span>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-1 pt-2">
+                            {lead.isNew && (
+                              <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
+                                Novo
+                              </span>
+                            )}
+                            {lead.hasPaid && (
+                              <span className="px-2 py-1 text-xs font-medium bg-teal-500/10 text-teal-500 rounded-full">
+                                Pago
+                              </span>
+                            )}
+                            {lead.convertedAt && (
+                              <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
+                                Convertido
+                              </span>
+                            )}
+                            {lead.isBlocked && (
+                              <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
+                                Bloqueado
+                              </span>
+                            )}
+                            {lead.resendPaused && (
+                              <span className="px-2 py-1 text-xs font-medium bg-orange-500/10 text-orange-500 rounded-full">
+                                Pausado
+                              </span>
+                            )}
+                            {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
+                              <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
+                                Pendente
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
             )}
       </main>
     </div>

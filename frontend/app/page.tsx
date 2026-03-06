@@ -18,33 +18,33 @@ export default function HomePage() {
       <PublicNavbar />
       
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-foreground mb-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4 sm:mb-6">
             Gerencie seus Bots do Telegram
             <span className="text-primary block mt-2">de Forma Profissional</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto px-4">
             Plataforma completa para criar, gerenciar e monetizar bots do Telegram
             com integração de pagamentos Pix e automação de mensagens.
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-4">
             {session ? (
-              <Link href="/dashboard">
-                <Button size="lg" className="text-lg px-8">
+              <Link href="/dashboard" className="w-full sm:w-auto">
+                <Button size="lg" className="text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto">
                   Ir para Dashboard
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </Link>
             ) : (
               <>
-                <Link href="/sign-in">
-                  <Button size="lg" className="text-lg px-8">
+                <Link href="/sign-in" className="w-full sm:w-auto">
+                  <Button size="lg" className="text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto">
                     Entrar
                   </Button>
                 </Link>
-                <Link href="#contato">
-                  <Button size="lg" variant="outline" className="text-lg px-8">
+                <Link href="#contato" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="text-base sm:text-lg px-6 sm:px-8 w-full sm:w-auto">
                     Entrar em Contato
                   </Button>
                 </Link>
@@ -55,17 +55,17 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-foreground mb-4">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+        <div className="text-center mb-8 sm:mb-12 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3 sm:mb-4">
             Recursos Poderosos
           </h2>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base sm:text-lg text-muted-foreground px-4">
             Tudo que você precisa para gerenciar seus bots
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
           <Card>
             <CardContent className="p-6">
               <div className="bg-primary/10 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
@@ -159,17 +159,17 @@ export default function HomePage() {
       </section>
 
       {/* Contact Section */}
-      <section id="contato" className="bg-card py-20">
+      <section id="contato" className="bg-card py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3 sm:mb-4">
               Entre em Contato
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-base sm:text-lg text-muted-foreground px-4">
               Tem alguma dúvida ou precisa de ajuda? Entre em contato conosco.
             </p>
           </div>
-          <div className="max-w-md mx-auto bg-card border border-border p-8 rounded-lg">
+          <div className="max-w-md mx-auto bg-card border border-border p-4 sm:p-6 md:p-8 rounded-lg">
             <form className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
@@ -210,9 +210,9 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-card border-t border-border py-12">
+      <footer className="bg-card border-t border-border py-8 sm:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             © 2024 Tele Bot. Todos os direitos reservados.
           </p>
         </div>

@@ -176,21 +176,21 @@ export default function NewBotPage() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6">
         {/* Tabs Navigation */}
-        <div className="mb-6 border-b border-border">
-          <nav className="flex gap-1 overflow-x-auto overflow-y-hidden">
+        <div className="mb-4 sm:mb-6 border-b border-border">
+          <nav className="flex gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8">
             {tabs.map((tab) => {
               const Icon = tab.icon
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 ${
                     activeTab === tab.id
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
               )
@@ -316,7 +316,7 @@ export default function NewBotPage() {
                   </label>
                   <div className="space-y-2">
                     {paymentButtons.map((btn, index) => (
-                      <div key={index} className="flex gap-2 items-center">
+                      <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                         <input
                           type="text"
                           placeholder="Texto do botão (ex: Comprar Agora)"
@@ -324,21 +324,23 @@ export default function NewBotPage() {
                           onChange={(e) => updatePaymentButton(index, "text", e.target.value)}
                           className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
                         />
-                        <PriceInput
-                          value={btn.value}
-                          onChange={(value) => updatePaymentButton(index, "value", value)}
-                          placeholder="R$ 0,00"
-                          className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removePaymentButton(index)}
-                          className="shrink-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <PriceInput
+                            value={btn.value}
+                            onChange={(value) => updatePaymentButton(index, "value", value)}
+                            placeholder="R$ 0,00"
+                            className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removePaymentButton(index)}
+                            className="shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                     <Button type="button" variant="outline" onClick={addPaymentButton} className="w-full">
@@ -476,7 +478,7 @@ export default function NewBotPage() {
                         </div>
                         <div className="space-y-2">
                           {group.map((btn, buttonIndex) => (
-                            <div key={buttonIndex} className="flex gap-2 items-center">
+                            <div key={buttonIndex} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                               <input
                                 type="text"
                                 placeholder="Texto do botão (ex: Comprar Agora)"
@@ -484,21 +486,23 @@ export default function NewBotPage() {
                                 onChange={(e) => updateButtonInGroup(groupIndex, buttonIndex, "text", e.target.value)}
                                 className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
                               />
-                              <PriceInput
-                                value={btn.value}
-                                onChange={(value) => updateButtonInGroup(groupIndex, buttonIndex, "value", value)}
-                                placeholder="R$ 0,00"
-                                className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                onClick={() => removeButtonFromGroup(groupIndex, buttonIndex)}
-                                className="shrink-0"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              <div className="flex gap-2">
+                                <PriceInput
+                                  value={btn.value}
+                                  onChange={(value) => updateButtonInGroup(groupIndex, buttonIndex, "value", value)}
+                                  placeholder="R$ 0,00"
+                                  className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => removeButtonFromGroup(groupIndex, buttonIndex)}
+                                  className="shrink-0"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           ))}
                           <Button
@@ -529,7 +533,7 @@ export default function NewBotPage() {
                       </p>
                       <div className="space-y-2">
                         {resendPaymentButtons.map((btn, index) => (
-                          <div key={index} className="flex gap-2 items-center">
+                          <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                             <input
                               type="text"
                               placeholder="Texto do botão (ex: Comprar Agora)"
@@ -537,21 +541,23 @@ export default function NewBotPage() {
                               onChange={(e) => updateResendPaymentButton(index, "text", e.target.value)}
                               className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
                             />
-                            <PriceInput
-                              value={btn.value}
-                              onChange={(value) => updateResendPaymentButton(index, "value", value)}
-                              placeholder="R$ 0,00"
-                              className="w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              onClick={() => removeResendPaymentButton(index)}
-                              className="shrink-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-2">
+                              <PriceInput
+                                value={btn.value}
+                                onChange={(value) => updateResendPaymentButton(index, "value", value)}
+                                placeholder="R$ 0,00"
+                                className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => removeResendPaymentButton(index)}
+                                className="shrink-0"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         <Button type="button" variant="outline" onClick={addResendPaymentButton} className="w-full">
@@ -626,14 +632,14 @@ export default function NewBotPage() {
           )}
 
           {/* Botões de ação fixos */}
-          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t border-border p-4 -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto flex justify-end gap-4">
-              <Link href="/bots">
-                <Button type="button" variant="outline">
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t border-border p-3 sm:p-4 -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-end gap-2 sm:gap-4">
+              <Link href="/bots" className="w-full sm:w-auto">
+                <Button type="button" variant="outline" className="w-full sm:w-auto">
                   Cancelar
                 </Button>
               </Link>
-              <Button type="submit" disabled={createBot.isPending} className="min-w-[140px]">
+              <Button type="submit" disabled={createBot.isPending} className="w-full sm:w-auto min-w-[140px]">
                 <Save className="h-4 w-4 mr-2" />
                 {createBot.isPending ? "Criando..." : "Criar Bot"}
               </Button>

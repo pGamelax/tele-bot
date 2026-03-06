@@ -364,21 +364,21 @@ export default function PaymentsPage() {
                       return (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors gap-3 sm:gap-4"
                         >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 w-full sm:w-auto">
                             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                               <DollarSign className="h-5 w-5 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">{botName}</p>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2 mt-1">
                                 <span className="text-xs text-muted-foreground">{formatDate(payment.createdAt)}</span>
                                 {getStatusBadge(payment.status)}
                               </div>
                             </div>
                           </div>
-                          <div className="text-right shrink-0 ml-4">
+                          <div className="text-left sm:text-right shrink-0 w-full sm:w-auto sm:ml-4">
                             <p className="text-sm font-bold text-foreground">{formatCurrency(payment.amount)}</p>
                             {payment.paidAt && (
                               <p className="text-xs text-muted-foreground">Pago em {formatDate(payment.paidAt)}</p>
