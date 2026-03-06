@@ -143,8 +143,10 @@ export default function EditBotPage() {
     syncpayApiSecret: "",
     startImage: "",
     startCaption: "",
+    startButtonMessage: "",
     resendImage: "",
     resendCaption: "",
+    resendButtonMessage: "",
     resendFirstDelay: 20,
     resendInterval: 10,
     isActive: true,
@@ -179,8 +181,10 @@ export default function EditBotPage() {
         syncpayApiSecret: bot.syncpayApiSecret,
         startImage: bot.startImage || "",
         startCaption: bot.startCaption || "",
+        startButtonMessage: bot.startButtonMessage || "",
         resendImage: bot.resendImage || "",
         resendCaption: bot.resendCaption || "",
+        resendButtonMessage: bot.resendButtonMessage || "",
         resendFirstDelay: bot.resendFirstDelay,
         resendInterval: bot.resendInterval,
         isActive: bot.isActive,
@@ -510,6 +514,21 @@ export default function EditBotPage() {
                     className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Mensagem para os Botões (opcional)
+                  </label>
+                  <textarea
+                    value={formData.startButtonMessage}
+                    onChange={(e) => setFormData({ ...formData, startButtonMessage: e.target.value })}
+                    rows={3}
+                    placeholder="Se preenchido, os botões serão enviados em uma mensagem separada com este texto. Se vazio, os botões aparecerão na legenda da imagem."
+                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Deixe vazio para usar os botões na legenda da imagem/vídeo
+                  </p>
+                </div>
                 <div className="border-t border-border pt-4">
                   <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
@@ -722,6 +741,21 @@ export default function EditBotPage() {
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Grupo de Botões
                     </Button>
+                  </div>
+                  <div className="mt-4 border-t border-border pt-4">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Mensagem para os Botões de Remarketing (opcional)
+                    </label>
+                    <textarea
+                      value={formData.resendButtonMessage}
+                      onChange={(e) => setFormData({ ...formData, resendButtonMessage: e.target.value })}
+                      rows={3}
+                      placeholder="Se preenchido, os botões serão enviados em uma mensagem separada com este texto. Se vazio, os botões aparecerão na legenda da imagem."
+                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Deixe vazio para usar os botões na legenda da imagem/vídeo
+                    </p>
                   </div>
                   {resendButtonGroups.length === 0 && (
                     <div className="mt-4 border-t border-border pt-4">

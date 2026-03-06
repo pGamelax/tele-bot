@@ -71,8 +71,10 @@ export interface Bot {
   syncpayApiSecret: string
   startImage?: string | null
   startCaption?: string | null
+  startButtonMessage?: string | null
   resendImage?: string | null
   resendCaption?: string | null
+  resendButtonMessage?: string | null
   resendImages?: Array<{ id: string; imageUrl: string; order: number }>
   resendCaptions?: Array<{ id: string; captionText: string; order: number }>
   resendButtonGroups?: Array<{ id: string; buttons: string; order: number }>
@@ -204,8 +206,10 @@ interface BotInput {
   syncpayApiSecret?: string
   startImage?: string | null
   startCaption?: string | null
+  startButtonMessage?: string | null
   resendImage?: string | null
   resendCaption?: string | null
+  resendButtonMessage?: string | null
   resendImages?: string[]
   resendCaptions?: string[]
   resendFirstDelay?: number

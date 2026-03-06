@@ -12,8 +12,10 @@ interface BotConfig {
   syncpayApiSecret: string;
   startImage?: string | null;
   startCaption?: string | null;
+  startButtonMessage?: string | null; // Mensagem separada para os botões (se não houver, usa botões na caption)
   resendImage?: string | null;
   resendCaption?: string | null;
+  resendButtonMessage?: string | null; // Mensagem separada para os botões de reenvio (se não houver, usa botões na caption)
   resendImages?: string[];
   resendCaptions?: string[]; // Múltiplos textos para rotação
   resendFirstDelay?: number;
@@ -28,6 +30,12 @@ export class BotManager {
   private static instance: BotManager;
   private bots: Map<string, Bot> = new Map();
   private botConfigs: Map<string, BotConfig> = new Map();
+
+  // Função auxiliar para formatar o texto do botão com preço antes do texto
+  private formatButtonText(btn: { text: string; value: number }): string {
+    const price = (btn.value / 100).toFixed(2).replace('.', ',');
+    return `${price} - ${btn.text}`;
+  }
   private resendTimers: Map<string, Map<string, NodeJS.Timeout>> = new Map();
 
   private constructor() {}
@@ -108,7 +116,7 @@ export class BotManager {
         keyboard = {
           inline_keyboard: config.paymentButtons.map((btn) => [
             {
-              text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
+              text: this.formatButtonText(btn),
               callback_data: `payment_${btn.value}`,
             },
           ]),
@@ -116,23 +124,27 @@ export class BotManager {
       }
 
       const caption = (config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const hasButtonMessage = config.startButtonMessage && config.startButtonMessage.trim().length > 0;
       
       if (config.startImage) {
         try {
           const isVideo = this.isVideoUrl(config.startImage);
           const media = await this.getMediaInput(config.startImage);
           
+          // Se há mensagem específica para botões, enviar mídia sem botões e depois mensagem separada
+          const replyMarkup = hasButtonMessage ? undefined : keyboard;
+          
           if (typeof media === 'string') {
             if (isVideo) {
               await bot.api.sendVideo(parseInt(chatId), media, {
                 caption: caption,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             } else {
               await bot.api.sendPhoto(parseInt(chatId), media, {
                 caption: caption,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             }
@@ -141,16 +153,25 @@ export class BotManager {
             if (isVideo) {
               await bot.api.sendVideo(parseInt(chatId), media, {
                 caption: caption,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             } else {
               await bot.api.sendPhoto(parseInt(chatId), media, {
                 caption: caption,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             }
+          }
+          
+          // Se há mensagem específica para botões, enviar mensagem separada com os botões
+          if (hasButtonMessage && keyboard) {
+            const buttonMessage = config.startButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
           }
         } catch (error: any) {
           // Verificar se é erro de bloqueio
@@ -181,6 +202,14 @@ export class BotManager {
               reply_markup: keyboard,
               parse_mode: undefined,
             });
+            // Se há mensagem específica para botões, enviar mensagem separada
+            if (hasButtonMessage && keyboard) {
+              const buttonMessage = config.startButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+              await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            }
           } catch (messageError: any) {
             const isBlockedError2 = this.isBlockedError(messageError);
             if (isBlockedError2) {
@@ -205,12 +234,20 @@ export class BotManager {
           }
         }
       } else {
-        const message = caption;
+        const message = hasButtonMessage ? caption : caption;
         try {
           await bot.api.sendMessage(parseInt(chatId), message, {
-            reply_markup: keyboard,
+            reply_markup: hasButtonMessage ? undefined : keyboard,
             parse_mode: undefined,
           });
+          // Se há mensagem específica para botões, enviar mensagem separada
+          if (hasButtonMessage && keyboard) {
+            const buttonMessage = config.startButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
         } catch (error: any) {
           // Verificar se é erro de bloqueio
           const isBlockedError = this.isBlockedError(error);
@@ -247,7 +284,7 @@ export class BotManager {
         keyboard = {
           inline_keyboard: buttonsToUse.map((btn) => [
             {
-              text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
+              text: this.formatButtonText(btn),
               callback_data: `payment_${btn.value}`,
             },
           ]),
@@ -256,23 +293,27 @@ export class BotManager {
 
       const mediaUrl = config.resendImage || config.startImage;
       const captionText = (config.resendCaption || config.startCaption || "Bem-vindo!").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const hasButtonMessage = config.resendButtonMessage && config.resendButtonMessage.trim().length > 0;
 
       if (mediaUrl) {
         try {
           const isVideo = this.isVideoUrl(mediaUrl);
           const media = await this.getMediaInput(mediaUrl);
           
+          // Se há mensagem específica para botões, enviar mídia sem botões e depois mensagem separada
+          const replyMarkup = hasButtonMessage ? undefined : keyboard;
+          
           if (typeof media === 'string') {
             if (isVideo) {
               await bot.api.sendVideo(parseInt(chatId), media, {
                 caption: captionText,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             } else {
               await bot.api.sendPhoto(parseInt(chatId), media, {
                 caption: captionText,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             }
@@ -281,28 +322,53 @@ export class BotManager {
             if (isVideo) {
               await bot.api.sendVideo(parseInt(chatId), media, {
                 caption: captionText,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             } else {
               await bot.api.sendPhoto(parseInt(chatId), media, {
                 caption: captionText,
-                reply_markup: keyboard,
+                reply_markup: replyMarkup,
                 parse_mode: undefined,
               });
             }
           }
+          
+          // Se há mensagem específica para botões, enviar mensagem separada com os botões
+          if (hasButtonMessage && keyboard) {
+            const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
         } catch (error) {
           await bot.api.sendMessage(parseInt(chatId), captionText, {
+            reply_markup: hasButtonMessage ? undefined : keyboard,
+            parse_mode: undefined,
+          });
+          // Se há mensagem específica para botões, enviar mensagem separada
+          if (hasButtonMessage && keyboard) {
+            const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
+        }
+      } else {
+        await bot.api.sendMessage(parseInt(chatId), captionText, {
+          reply_markup: hasButtonMessage ? undefined : keyboard,
+          parse_mode: undefined,
+        });
+        // Se há mensagem específica para botões, enviar mensagem separada
+        if (hasButtonMessage && keyboard) {
+          const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
             reply_markup: keyboard,
             parse_mode: undefined,
           });
         }
-      } else {
-        await bot.api.sendMessage(parseInt(chatId), captionText, {
-          reply_markup: keyboard,
-          parse_mode: undefined,
-        });
       }
     };
 
@@ -746,7 +812,7 @@ export class BotManager {
         keyboard = {
           inline_keyboard: buttonsToUse.map((btn) => [
             {
-              text: `${btn.text} - R$ ${(btn.value / 100).toFixed(2)}`,
+              text: this.formatButtonText(btn),
               callback_data: `payment_${btn.value}`,
             },
           ]),
@@ -795,6 +861,7 @@ export class BotManager {
         captionText = config.resendCaption || config.startCaption || "Bem-vindo!";
       }
       captionText = captionText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const hasButtonMessage = config.resendButtonMessage && config.resendButtonMessage.trim().length > 0;
 
       if (mediaUrl) {
         let mediaSent = false;
@@ -802,22 +869,34 @@ export class BotManager {
           const isVideo = this.isVideoUrl(mediaUrl);
           const media = await this.getMediaInput(mediaUrl);
           
+          // Se há mensagem específica para botões, enviar mídia sem botões e depois mensagem separada
+          const replyMarkup = hasButtonMessage ? undefined : keyboard;
+          
           if (typeof media === 'string') {
             try {
               if (isVideo) {
                 await bot.api.sendVideo(parseInt(chatId), media, {
                   caption: captionText,
-                  reply_markup: keyboard,
+                  reply_markup: replyMarkup,
                   parse_mode: undefined,
                 });
               } else {
                 await bot.api.sendPhoto(parseInt(chatId), media, {
                   caption: captionText,
-                  reply_markup: keyboard,
+                  reply_markup: replyMarkup,
                   parse_mode: undefined,
                 });
               }
               mediaSent = true;
+              
+              // Se há mensagem específica para botões, enviar mensagem separada com os botões
+              if (hasButtonMessage && keyboard) {
+                const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+              }
             } catch (urlError: any) {
               // Verificar se é erro de bloqueio
               const isBlockedError = this.isBlockedError(urlError);
@@ -831,10 +910,18 @@ export class BotManager {
               if (!isBlockedError) {
                 try {
                   await bot.api.sendMessage(parseInt(chatId), captionText, {
-                    reply_markup: keyboard,
+                    reply_markup: hasButtonMessage ? undefined : keyboard,
                     parse_mode: undefined,
                   });
                   mediaSent = true;
+                  // Se há mensagem específica para botões, enviar mensagem separada
+                  if (hasButtonMessage && keyboard) {
+                    const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                      reply_markup: keyboard,
+                      parse_mode: undefined,
+                    });
+                  }
                 } catch (messageError: any) {
                   const isBlockedError2 = this.isBlockedError(messageError);
                   if (isBlockedError2 && lead) {
@@ -854,17 +941,26 @@ export class BotManager {
               if (isVideo) {
                 await bot.api.sendVideo(parseInt(chatId), media, {
                   caption: captionText,
-                  reply_markup: keyboard,
+                  reply_markup: replyMarkup,
                   parse_mode: undefined,
                 });
               } else {
                 await bot.api.sendPhoto(parseInt(chatId), media, {
                   caption: captionText,
-                  reply_markup: keyboard,
+                  reply_markup: replyMarkup,
                   parse_mode: undefined,
                 });
               }
               mediaSent = true;
+              
+              // Se há mensagem específica para botões, enviar mensagem separada com os botões
+              if (hasButtonMessage && keyboard) {
+                const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+              }
             } catch (fileError: any) {
               // Verificar se é erro de bloqueio
               const isBlockedError = this.isBlockedError(fileError);
@@ -878,10 +974,18 @@ export class BotManager {
               if (!isBlockedError) {
                 try {
                   await bot.api.sendMessage(parseInt(chatId), captionText, {
-                    reply_markup: keyboard,
+                    reply_markup: hasButtonMessage ? undefined : keyboard,
                     parse_mode: undefined,
                   });
                   mediaSent = true;
+                  // Se há mensagem específica para botões, enviar mensagem separada
+                  if (hasButtonMessage && keyboard) {
+                    const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                      reply_markup: keyboard,
+                      parse_mode: undefined,
+                    });
+                  }
                 } catch (messageError: any) {
                   const isBlockedError2 = this.isBlockedError(messageError);
                   if (isBlockedError2 && lead) {
@@ -901,10 +1005,18 @@ export class BotManager {
           if (!mediaSent) {
             try {
               await bot.api.sendMessage(parseInt(chatId), captionText, {
-                reply_markup: keyboard,
+                reply_markup: hasButtonMessage ? undefined : keyboard,
                 parse_mode: undefined,
               });
               mediaSent = true;
+              // Se há mensagem específica para botões, enviar mensagem separada
+              if (hasButtonMessage && keyboard) {
+                const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                  reply_markup: keyboard,
+                  parse_mode: undefined,
+                });
+              }
             } catch (textError) {
               // Verificar se é erro de bloqueio
               const isBlockedError = this.isBlockedError(textError);
@@ -922,9 +1034,17 @@ export class BotManager {
         if (!mediaSent) {
           try {
             await bot.api.sendMessage(parseInt(chatId), captionText, {
-              reply_markup: keyboard,
+              reply_markup: hasButtonMessage ? undefined : keyboard,
               parse_mode: undefined,
             });
+            // Se há mensagem específica para botões, enviar mensagem separada
+            if (hasButtonMessage && keyboard) {
+              const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+              await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+                reply_markup: keyboard,
+                parse_mode: undefined,
+              });
+            }
           } catch (messageError: any) {
             // Verificar se é erro de bloqueio
             const isBlockedError = this.isBlockedError(messageError);
@@ -940,9 +1060,17 @@ export class BotManager {
       } else {
         try {
           await bot.api.sendMessage(parseInt(chatId), captionText, {
-            reply_markup: keyboard,
+            reply_markup: hasButtonMessage ? undefined : keyboard,
             parse_mode: undefined,
           });
+          // Se há mensagem específica para botões, enviar mensagem separada
+          if (hasButtonMessage && keyboard) {
+            const buttonMessage = config.resendButtonMessage!.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            await bot.api.sendMessage(parseInt(chatId), buttonMessage, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
         } catch (messageError: any) {
           // Verificar se é erro de bloqueio
           const isBlockedError = this.isBlockedError(messageError);
@@ -1115,8 +1243,10 @@ export class BotManager {
         syncpayApiSecret: bot.syncpayApiSecret,
         startImage: bot.startImage,
         startCaption: bot.startCaption,
+        startButtonMessage: bot.startButtonMessage,
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
+        resendButtonMessage: bot.resendButtonMessage,
         resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
         resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
         resendFirstDelay: bot.resendFirstDelay,

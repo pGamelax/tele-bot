@@ -378,8 +378,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         syncpayApiSecret,
         startImage,
         startCaption,
+        startButtonMessage,
         resendImage,
         resendCaption,
+        resendButtonMessage,
         resendImages,
         resendCaptions,
         resendFirstDelay,
@@ -397,8 +399,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         syncpayApiSecret: string;
         startImage?: string;
         startCaption?: string;
+        startButtonMessage?: string;
         resendImage?: string;
         resendCaption?: string;
+        resendButtonMessage?: string;
         resendImages?: string[];
         resendCaptions?: string[];
         resendFirstDelay?: number;
@@ -427,8 +431,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           syncpayApiSecret,
           startImage,
           startCaption,
+          startButtonMessage: startButtonMessage || null,
           resendImage,
           resendCaption,
+          resendButtonMessage: resendButtonMessage || null,
           resendFirstDelay: resendFirstDelay || 20,
           resendInterval: resendInterval || 10,
           facebookPixelId: facebookPixelId || null,
@@ -488,8 +494,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         syncpayApiSecret: bot.syncpayApiSecret,
         startImage: bot.startImage,
         startCaption: bot.startCaption,
+        startButtonMessage: bot.startButtonMessage,
         resendImage: bot.resendImage,
         resendCaption: bot.resendCaption,
+        resendButtonMessage: bot.resendButtonMessage,
         resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
         resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
         resendFirstDelay: bot.resendFirstDelay || 20,
@@ -530,8 +538,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         syncpayApiSecret,
         startImage,
         startCaption,
+        startButtonMessage,
         resendImage,
         resendCaption,
+        resendButtonMessage,
         resendImages,
         resendCaptions,
         resendFirstDelay,
@@ -550,8 +560,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         syncpayApiSecret?: string;
         startImage?: string;
         startCaption?: string;
+        startButtonMessage?: string;
         resendImage?: string;
         resendCaption?: string;
+        resendButtonMessage?: string;
         resendImages?: string[];
         resendCaptions?: string[];
         resendFirstDelay?: number;
@@ -576,8 +588,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
       if (syncpayApiSecret !== undefined) updateData.syncpayApiSecret = syncpayApiSecret;
       if (startImage !== undefined) updateData.startImage = (startImage && startImage.trim()) ? startImage.trim() : null;
       if (startCaption !== undefined) updateData.startCaption = (startCaption && startCaption.trim()) ? startCaption.trim() : null;
+      if (startButtonMessage !== undefined) updateData.startButtonMessage = (startButtonMessage && startButtonMessage.trim()) ? startButtonMessage.trim() : null;
       if (resendImage !== undefined) updateData.resendImage = (resendImage && resendImage.trim()) ? resendImage.trim() : null;
       if (resendCaption !== undefined) updateData.resendCaption = (resendCaption && resendCaption.trim()) ? resendCaption.trim() : null;
+      if (resendButtonMessage !== undefined) updateData.resendButtonMessage = (resendButtonMessage && resendButtonMessage.trim()) ? resendButtonMessage.trim() : null;
       if (resendFirstDelay !== undefined) updateData.resendFirstDelay = resendFirstDelay;
       if (resendInterval !== undefined) updateData.resendInterval = resendInterval;
       if (isActive !== undefined) updateData.isActive = isActive;
@@ -717,8 +731,10 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           syncpayApiSecret: bot.syncpayApiSecret,
           startImage: bot.startImage,
           startCaption: bot.startCaption,
+          startButtonMessage: bot.startButtonMessage,
           resendImage: bot.resendImage,
           resendCaption: bot.resendCaption,
+          resendButtonMessage: bot.resendButtonMessage,
           resendImages: bot.resendImages?.map((img: any) => img.imageUrl) || [],
           resendCaptions: (bot as any).resendCaptions?.map((cap: any) => cap.captionText) || [],
           resendFirstDelay: bot.resendFirstDelay || 20,

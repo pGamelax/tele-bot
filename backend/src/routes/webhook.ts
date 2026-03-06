@@ -152,6 +152,8 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
           select: {
             id: true,
             fbclid: true,
+            firstName: true,
+            lastName: true,
             utmSource: true,
             utmMedium: true,
             utmCampaign: true,
@@ -191,13 +193,18 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               ? Math.floor(payment.paidAt.getTime() / 1000)
               : Math.floor(Date.now() / 1000);
 
-            // Enviar evento com fbclid do lead (parâmetros são salvos permanentemente no lead)
+            // Enviar evento com dados do lead (Facebook requer dados do cliente)
             await facebookConversions.sendPurchase(
               bot.facebookPixelId,
               bot.facebookAccessToken,
               amountInReais,
               lead?.fbclid || undefined,
-              eventTime
+              eventTime,
+              {
+                firstName: lead?.firstName || undefined,
+                lastName: lead?.lastName || undefined,
+                externalId: payment.telegramChatId, // Usar telegramChatId como external_id
+              }
             );
           } else {
             if (!bot?.facebookPixelId) {

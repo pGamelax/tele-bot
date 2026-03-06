@@ -85,10 +85,12 @@ model Bot {
   syncpayApiSecret String
   startImage      String?  // URL da imagem
   startCaption    String?  // Caption da imagem
+  startButtonMessage String? @db.Text // Mensagem separada para os botões (se não houver, usa botões na caption)
   isActive        Boolean  @default(true)
   // Configuração de reenvio
   resendImage     String?  // URL da imagem para reenvio (mantido para compatibilidade)
   resendCaption   String?  // Caption para reenvio
+  resendButtonMessage String? @db.Text // Mensagem separada para os botões de reenvio (se não houver, usa botões na caption)
   resendFirstDelay Int     @default(20) // Minutos até primeiro reenvio
   resendInterval  Int      @default(10) // Minutos entre reenvios
   // Rastreamento Facebook Ads

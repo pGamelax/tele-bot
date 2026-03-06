@@ -3,6 +3,15 @@
  * Documentação: https://developers.facebook.com/docs/marketing-api/conversions-api
  */
 
+import { createHash } from "crypto";
+
+/**
+ * Faz hash SHA256 de uma string (requerido pelo Facebook)
+ */
+function hashSHA256(value: string): string {
+  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
+}
+
 interface PurchaseEventData {
   pixelId: string;
   accessToken: string;
@@ -12,6 +21,12 @@ interface PurchaseEventData {
     fbclid?: string;
     client_ip_address?: string;
     client_user_agent?: string;
+    // Dados do cliente (devem ser hash SHA256, exceto external_id)
+    email?: string; // Hash SHA256
+    phone?: string; // Hash SHA256
+    firstName?: string; // Hash SHA256
+    lastName?: string; // Hash SHA256
+    externalId?: string; // ID externo (não precisa hash)
   };
   customData: {
     value: number; // Valor em reais
@@ -39,6 +54,39 @@ export class FacebookConversionsService {
 
       const endpoint = `${this.apiUrl}/${data.pixelId}/events`;
 
+      // Preparar user_data com dados do cliente (Facebook requer pelo menos um)
+      const userData: any = {};
+      
+      // Adicionar fbc (Facebook Click ID)
+      if (data.userData.fbclid) {
+        userData.fbc = `fb.1.${data.userData.fbclid}.${Date.now()}`;
+      }
+      
+      // Adicionar IP e User Agent
+      if (data.userData.client_ip_address) {
+        userData.client_ip_address = data.userData.client_ip_address;
+      }
+      if (data.userData.client_user_agent) {
+        userData.client_user_agent = data.userData.client_user_agent;
+      }
+      
+      // Adicionar dados do cliente (hash SHA256 conforme requerido pelo Facebook)
+      if (data.userData.email) {
+        userData.em = hashSHA256(data.userData.email);
+      }
+      if (data.userData.phone) {
+        userData.ph = hashSHA256(data.userData.phone);
+      }
+      if (data.userData.firstName) {
+        userData.fn = hashSHA256(data.userData.firstName);
+      }
+      if (data.userData.lastName) {
+        userData.ln = hashSHA256(data.userData.lastName);
+      }
+      if (data.userData.externalId) {
+        userData.external_id = data.userData.externalId;
+      }
+
       // Preparar payload conforme especificação da API
       const payload = {
         data: [
@@ -47,11 +95,7 @@ export class FacebookConversionsService {
             event_time: data.eventTime,
             event_source_url: data.eventSourceUrl || process.env.FACEBOOK_EVENT_SOURCE_URL || "https://telegram.org",
             action_source: data.actionSource || "other",
-            user_data: {
-              ...(data.userData.fbclid && { fbc: `fb.1.${data.userData.fbclid}.${Date.now()}` }),
-              ...(data.userData.client_ip_address && { client_ip_address: data.userData.client_ip_address }),
-              ...(data.userData.client_user_agent && { client_user_agent: data.userData.client_user_agent }),
-            },
+            user_data: userData,
             custom_data: {
               value: data.customData.value,
               currency: data.customData.currency,
@@ -108,7 +152,14 @@ export class FacebookConversionsService {
     accessToken: string,
     amount: number, // Valor em reais
     fbclid?: string,
-    eventTime?: number
+    eventTime?: number,
+    userData?: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phone?: string;
+      externalId?: string; // ID externo (ex: telegramChatId)
+    }
   ): Promise<boolean> {
     return this.sendPurchaseEvent({
       pixelId,
@@ -117,6 +168,11 @@ export class FacebookConversionsService {
       eventTime: eventTime || Math.floor(Date.now() / 1000),
       userData: {
         fbclid,
+        firstName: userData?.firstName,
+        lastName: userData?.lastName,
+        email: userData?.email,
+        phone: userData?.phone,
+        externalId: userData?.externalId,
       },
       customData: {
         value: amount,
