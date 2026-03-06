@@ -3,13 +3,17 @@
  * Documentação: https://developers.facebook.com/docs/marketing-api/conversions-api
  */
 
-import { createHash } from "crypto";
+import axios from "axios";
+import crypto from "crypto";
 
 /**
  * Faz hash SHA256 de uma string (requerido pelo Facebook)
  */
-function hashSHA256(value: string): string {
-  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
+function hashSha256(dado: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(dado.trim().toLowerCase())
+    .digest("hex");
 }
 
 interface PurchaseEventData {
@@ -40,8 +44,6 @@ interface PurchaseEventData {
 }
 
 export class FacebookConversionsService {
-  private apiUrl = "https://graph.facebook.com/v18.0";
-
   /**
    * Envia evento de compra para Facebook Conversions API
    */
@@ -52,14 +54,14 @@ export class FacebookConversionsService {
         return false;
       }
 
-      const endpoint = `${this.apiUrl}/${data.pixelId}/events`;
+      const url = `https://graph.facebook.com/v19.0/${data.pixelId}/events?access_token=${data.accessToken}`;
 
-      // Preparar user_data com dados do cliente (Facebook requer pelo menos um)
+      // Preparar user_data com dados do cliente
       const userData: any = {};
       
-      // Adicionar fbc (Facebook Click ID)
+      // Adicionar fbc (Facebook Click ID) - usar diretamente se fornecido
       if (data.userData.fbclid) {
-        userData.fbc = `fb.1.${data.userData.fbclid}.${Date.now()}`;
+        userData.fbc = data.userData.fbclid;
       }
       
       // Adicionar IP e User Agent
@@ -71,75 +73,56 @@ export class FacebookConversionsService {
       }
       
       // Adicionar dados do cliente (hash SHA256 conforme requerido pelo Facebook)
-      if (data.userData.email) {
-        userData.em = hashSHA256(data.userData.email);
-      }
-      if (data.userData.phone) {
-        userData.ph = hashSHA256(data.userData.phone);
-      }
+      // Usar arrays como no código que funcionou
       if (data.userData.firstName) {
-        userData.fn = hashSHA256(data.userData.firstName);
+        userData.fn = [hashSha256(data.userData.firstName)];
       }
       if (data.userData.lastName) {
-        userData.ln = hashSHA256(data.userData.lastName);
+        userData.ln = [hashSha256(data.userData.lastName)];
+      }
+      if (data.userData.email) {
+        userData.em = [hashSha256(data.userData.email)];
+      }
+      if (data.userData.phone) {
+        userData.ph = [hashSha256(data.userData.phone)];
       }
       if (data.userData.externalId) {
         userData.external_id = data.userData.externalId;
       }
 
-      // Preparar payload conforme especificação da API
+      // Preparar payload conforme o código que funcionou
       const payload = {
         data: [
           {
             event_name: data.eventName,
             event_time: data.eventTime,
-            event_source_url: data.eventSourceUrl || process.env.FACEBOOK_EVENT_SOURCE_URL || "https://telegram.org",
-            action_source: data.actionSource || "other",
+            action_source: data.actionSource || "chat",
+            event_source_url: data.eventSourceUrl || "https://t.me/clashdata123bot",
             user_data: userData,
             custom_data: {
-              value: data.customData.value,
               currency: data.customData.currency,
+              value: data.customData.value,
+              ...(data.userData.externalId && { telegram_chat_id: data.userData.externalId }),
               ...(data.customData.content_ids && { content_ids: data.customData.content_ids }),
               ...(data.customData.content_name && { content_name: data.customData.content_name }),
               ...(data.customData.content_type && { content_type: data.customData.content_type }),
             },
           },
         ],
-        access_token: data.accessToken,
       };
 
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Facebook Conversions] Erro ao enviar evento:`, {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText.substring(0, 500),
-        });
-        return false;
-      }
-
-      const result = await response.json();
+      const res = await axios.post(url, payload, { family: 4 });
+      console.log("✅ Compra enviada:", res.data);
       
-      if (result.events_received && result.events_received > 0) {
+      if (res.data.events_received && res.data.events_received > 0) {
         return true;
       } else {
-        console.warn(`[Facebook Conversions] Evento não foi recebido:`, result);
+        console.warn(`[Facebook Conversions] Evento não foi recebido:`, res.data);
         return false;
       }
     } catch (error: any) {
-      console.error("[Facebook Conversions] Erro ao enviar evento:", {
-        error: error.message,
-        stack: error.stack?.substring(0, 300),
-      });
+      console.error("❌ Erro ao enviar evento:", error.response?.data || error.message);
+      console.log(error);
       return false;
     }
   }
@@ -180,7 +163,7 @@ export class FacebookConversionsService {
         content_name: "Telegram Bot Purchase",
         content_type: "product",
       },
-      actionSource: "other",
+      actionSource: "chat",
     });
   }
 }
