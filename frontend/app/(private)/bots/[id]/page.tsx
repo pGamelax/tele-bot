@@ -85,7 +85,7 @@ function BotInfoSection({ botId }: { botId: string }) {
             type="text"
             value={trackingLink}
             readOnly
-            className="flex-1 px-3 py-2 border border-input bg-card rounded-lg text-foreground text-xs sm:text-sm break-all"
+            className="flex-1 px-3 py-2 border border-input bg-card rounded-lg text-foreground text-xs sm:text-sm break-all overflow-hidden"
           />
           <Button
             type="button"
@@ -105,21 +105,21 @@ function BotInfoSection({ botId }: { botId: string }) {
       </div>
 
       {/* Instruções */}
-      <div className="mt-4 p-4 bg-primary/10 rounded-lg border border-primary/20">
+      <div className="mt-4 p-3 sm:p-4 bg-primary/10 rounded-lg border border-primary/20">
         <p className="text-sm font-semibold text-foreground mb-2">Como usar:</p>
-        <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+        <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words">
           Cole este link no campo{" "}
           <span className="font-semibold text-primary">"URL do site"</span> dos seus anúncios do
           Facebook Ads.
         </p>
-        <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+        <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words">
           O Facebook adicionará <span className="font-semibold text-primary">automaticamente</span> o parâmetro{" "}
           <span className="font-semibold text-primary">fbclid</span> quando o usuário clicar no
           anúncio. Você não precisa adicionar este parâmetro manualmente.
         </p>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed break-words">
           <span className="font-semibold text-primary">Opcional:</span> Se quiser rastrear campanhas específicas, você pode adicionar parâmetros UTM ao link, como{" "}
-          <span className="font-semibold text-primary">?utm_source=facebook&utm_campaign=nome_da_campanha</span>.
+          <span className="font-semibold text-primary break-all inline-block">?utm_source=facebook&utm_campaign=nome_da_campanha</span>.
           Você também pode configurar esses parâmetros diretamente no Facebook Ads na seção "Parâmetros UTM".
         </p>
       </div>
