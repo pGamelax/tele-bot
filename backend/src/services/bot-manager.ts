@@ -34,7 +34,7 @@ export class BotManager {
   // Função auxiliar para formatar o texto do botão com preço antes do texto
   private formatButtonText(btn: { text: string; value: number }): string {
     const price = (btn.value / 100).toFixed(2).replace('.', ',');
-    return `${price} - ${btn.text}`;
+    return `R$ ${price} - ${btn.text}`;
   }
   private resendTimers: Map<string, Map<string, NodeJS.Timeout>> = new Map();
 
