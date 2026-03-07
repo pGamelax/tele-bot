@@ -7,8 +7,57 @@ const prisma = new PrismaClient();
 const botManager = BotManager.getInstance();
 const facebookConversions = new FacebookConversionsService();
 
+/**
+ * Obtém o IP do cliente do request
+ * Tenta vários headers comuns e fallback para IP da VPS
+ */
+function getClientIp(request: Request): string | undefined {
+  // Tentar obter IP do request (se disponível no Elysia)
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    // x-forwarded-for pode conter múltiplos IPs, pegar o primeiro
+    return forwardedFor.split(",")[0].trim();
+  }
+  
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) {
+    return realIp.trim();
+  }
+  
+  const cfConnectingIp = request.headers.get("cf-connecting-ip"); // Cloudflare
+  if (cfConnectingIp) {
+    return cfConnectingIp.trim();
+  }
+  
+  // Se não conseguir obter do request, retornar undefined para usar IP da VPS
+  return undefined;
+}
+
+/**
+ * Obtém o IP da VPS (servidor)
+ * Pode ser configurado via variável de ambiente ou obtido dinamicamente
+ */
+async function getServerIp(): Promise<string | undefined> {
+  // Se houver variável de ambiente configurada, usar ela
+  if (process.env.SERVER_IP) {
+    return process.env.SERVER_IP;
+  }
+  
+  // Tentar obter IP público da VPS via serviço externo
+  try {
+    const response = await fetch("https://api.ipify.org?format=json", {
+      signal: AbortSignal.timeout(2000), // Timeout de 2 segundos
+    });
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.warn("[Webhook] Não foi possível obter IP da VPS:", error);
+    return undefined;
+  }
+}
+
 export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
-  .post("/syncpay", async ({ body, headers, set }) => {
+  .post("/syncpay", async ({ body, headers, request, set }) => {
     try {
 
       // Formato da SyncPay conforme documentação:
@@ -193,7 +242,16 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               ? Math.floor(payment.paidAt.getTime() / 1000)
               : Math.floor(Date.now() / 1000);
 
-            // Enviar evento com dados do lead (Facebook requer dados do cliente)
+            // Obter IP do cliente (tentar do request, senão usar IP da VPS)
+            let clientIp = getClientIp(request);
+            if (!clientIp) {
+              clientIp = await getServerIp();
+            }
+
+            // Obter User Agent do request
+            const userAgent = request.headers.get("user-agent") || undefined;
+
+            // Enviar evento com todos os dados disponíveis para melhorar qualidade do evento
             await facebookConversions.sendPurchase(
               bot.facebookPixelId,
               bot.facebookAccessToken,
@@ -203,6 +261,15 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               {
                 firstName: lead?.firstName || undefined,
                 lastName: lead?.lastName || undefined,
+                email: undefined, // Email não está disponível no Lead atualmente
+                phone: undefined, // Telefone não está disponível no Lead atualmente
+                fbp: undefined, // Facebook Browser ID - pode ser extraído do cookie se disponível
+                clientIpAddress: clientIp,
+                clientUserAgent: userAgent,
+                city: undefined, // Cidade não está disponível no Lead atualmente
+                state: undefined, // Estado não está disponível no Lead atualmente
+                zip: undefined, // Código postal não está disponível no Lead atualmente
+                dateOfBirth: undefined, // Data de nascimento não está disponível no Lead atualmente
                 externalId: payment.telegramChatId, // Usar telegramChatId como external_id
               }
             );

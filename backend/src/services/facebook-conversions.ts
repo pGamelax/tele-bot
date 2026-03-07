@@ -22,14 +22,19 @@ interface PurchaseEventData {
   eventName: string; // "Purchase"
   eventTime: number; // Unix timestamp em segundos
   userData: {
-    fbclid?: string;
-    client_ip_address?: string;
-    client_user_agent?: string;
+    fbclid?: string; // Facebook Click ID (fbc) - não precisa hash
+    fbp?: string; // Facebook Browser ID - não precisa hash
+    client_ip_address?: string; // IP do cliente - não precisa hash
+    client_user_agent?: string; // User Agent - não precisa hash
     // Dados do cliente (devem ser hash SHA256, exceto external_id)
     email?: string; // Hash SHA256
     phone?: string; // Hash SHA256
     firstName?: string; // Hash SHA256
     lastName?: string; // Hash SHA256
+    city?: string; // Cidade - Hash SHA256
+    state?: string; // Estado - Hash SHA256
+    zip?: string; // Código postal - Hash SHA256
+    dateOfBirth?: string; // Data de nascimento (formato: YYYYMMDD) - Hash SHA256
     externalId?: string; // ID externo (não precisa hash)
   };
   customData: {
@@ -59,12 +64,18 @@ export class FacebookConversionsService {
       // Preparar user_data com dados do cliente
       const userData: any = {};
       
-      // Adicionar fbc (Facebook Click ID) - usar diretamente se fornecido
+      // Parâmetros que NÃO precisam de hash (conforme documentação Facebook)
+      // fbc (Facebook Click ID)
       if (data.userData.fbclid) {
         userData.fbc = data.userData.fbclid;
       }
       
-      // Adicionar IP e User Agent
+      // fbp (Facebook Browser ID)
+      if (data.userData.fbp) {
+        userData.fbp = data.userData.fbp;
+      }
+      
+      // IP Address e User Agent
       if (data.userData.client_ip_address) {
         userData.client_ip_address = data.userData.client_ip_address;
       }
@@ -72,7 +83,7 @@ export class FacebookConversionsService {
         userData.client_user_agent = data.userData.client_user_agent;
       }
       
-      // Adicionar dados do cliente (hash SHA256 conforme requerido pelo Facebook)
+      // Dados do cliente que PRECISAM de hash SHA256 (conforme documentação Facebook)
       // Usar arrays como no código que funcionou
       if (data.userData.firstName) {
         userData.fn = [hashSha256(data.userData.firstName)];
@@ -86,6 +97,24 @@ export class FacebookConversionsService {
       if (data.userData.phone) {
         userData.ph = [hashSha256(data.userData.phone)];
       }
+      
+      // Dados de localização (precisam hash)
+      if (data.userData.city) {
+        userData.ct = [hashSha256(data.userData.city)];
+      }
+      if (data.userData.state) {
+        userData.st = [hashSha256(data.userData.state)];
+      }
+      if (data.userData.zip) {
+        userData.zp = [hashSha256(data.userData.zip)];
+      }
+      
+      // Data de nascimento (formato: YYYYMMDD, precisa hash)
+      if (data.userData.dateOfBirth) {
+        userData.db = [hashSha256(data.userData.dateOfBirth)];
+      }
+      
+      // external_id (não precisa hash)
       if (data.userData.externalId) {
         userData.external_id = data.userData.externalId;
       }
@@ -141,6 +170,13 @@ export class FacebookConversionsService {
       lastName?: string;
       email?: string;
       phone?: string;
+      fbp?: string; // Facebook Browser ID
+      clientIpAddress?: string; // IP do cliente (ou IP da VPS como fallback)
+      clientUserAgent?: string; // User Agent
+      city?: string;
+      state?: string;
+      zip?: string;
+      dateOfBirth?: string; // Formato: YYYYMMDD
       externalId?: string; // ID externo (ex: telegramChatId)
     }
   ): Promise<boolean> {
@@ -151,10 +187,17 @@ export class FacebookConversionsService {
       eventTime: eventTime || Math.floor(Date.now() / 1000),
       userData: {
         fbclid,
+        fbp: userData?.fbp,
+        client_ip_address: userData?.clientIpAddress,
+        client_user_agent: userData?.clientUserAgent,
         firstName: userData?.firstName,
         lastName: userData?.lastName,
         email: userData?.email,
         phone: userData?.phone,
+        city: userData?.city,
+        state: userData?.state,
+        zip: userData?.zip,
+        dateOfBirth: userData?.dateOfBirth,
         externalId: userData?.externalId,
       },
       customData: {
