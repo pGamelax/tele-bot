@@ -98,6 +98,8 @@ model Bot {
   facebookAccessToken String?  // Facebook Access Token para Conversions API
   // Mensagem após confirmação de pagamento
   paymentConfirmedMessage String?  // Mensagem enviada após confirmação de pagamento
+  // Bot manual (disparo manual)
+  isManual        Boolean  @default(false) // Se é um bot de disparo manual
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -110,6 +112,7 @@ model Bot {
   resendButtonGroups ResendButtonGroup[]
   leads          Lead[]
   payments       Payment[]
+  manualBotBlockedLeads ManualBotBlockedLead[] // Leads bloqueados do bot manual
 
   @@map("bots")
 }
@@ -218,4 +221,22 @@ model Lead {
   bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("leads")
+}
+
+model ManualBotBlockedLead {
+  id              String   @id @default(cuid())
+  botId           String   // ID do bot manual
+  telegramChatId String   // Chat ID do lead bloqueado
+  telegramUsername String? // Username do lead
+  firstName       String?  // Nome do lead
+  lastName        String?  // Sobrenome do lead
+  blockedAt      DateTime @default(now()) // Quando foi bloqueado
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, telegramChatId]) // Um lead só pode ser bloqueado uma vez por bot
+  @@map("manual_bot_blocked_leads")
+  @@index([botId])
 }

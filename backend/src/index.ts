@@ -9,6 +9,7 @@ import { leadRoutes } from "./routes/leads";
 import { webhookRoutes } from "./routes/webhook";
 import { trackingRoutes } from "./routes/tracking";
 import { queueRoutes } from "./routes/queue";
+import { manualBotRoutes } from "./routes/manual-bot";
 import { BotManager } from "./services/bot-manager";
 import { restoreResends, resendWorker } from "./services/resend-queue";
 
@@ -112,6 +113,7 @@ const app = new Elysia()
   .use(webhookRoutes)
   .use(trackingRoutes)
   .use(queueRoutes)
+  .use(manualBotRoutes)
   .get("/", () => ({ message: "Tele Bot API" }));
 
 const port = parseInt(process.env.PORT || "3000");

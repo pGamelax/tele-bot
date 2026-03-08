@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
-import { usePayments, useBots, Payment } from "@/lib/api-client"
+import { usePayments, useBots, useManualBot, Payment } from "@/lib/api-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -26,6 +26,7 @@ import {
   Target,
   QrCode,
   Calendar,
+  Send,
 } from "lucide-react"
 
 type PeriodFilter = "today" | "yesterday" | "week" | "month" | "all"
@@ -43,6 +44,7 @@ export default function PaymentsPage() {
 
   // Buscar dados
   const { data: bots = [] } = useBots()
+  const { data: manualBot } = useManualBot()
   const { data: allPayments = [], isLoading, error } = usePayments()
 
   useEffect(() => {
@@ -124,19 +126,55 @@ export default function PaymentsPage() {
     return filtered
   }, [allPayments, periodFilter, selectedBot, selectedStatus])
 
-  // Calcular métricas principais
-  const metrics = useMemo(() => {
-    const pixGenerated = filteredPayments.length
-    const pixPaid = filteredPayments.filter((p) => p.status === "paid").length
-    const pixPending = filteredPayments.filter((p) => p.status === "pending").length
-    const pixExpired = filteredPayments.filter((p) => p.status === "expired").length
-    const pixCancelled = filteredPayments.filter((p) => p.status === "cancelled").length
+  // Separar pagamentos do bot manual e dos outros bots
+  const manualBotPayments = useMemo(() => {
+    if (!manualBot) return []
+    return filteredPayments.filter((p) => p.botId === manualBot.id)
+  }, [filteredPayments, manualBot])
 
-    const totalRevenue = filteredPayments
+  const regularBotPayments = useMemo(() => {
+    if (!manualBot) return filteredPayments
+    return filteredPayments.filter((p) => p.botId !== manualBot.id)
+  }, [filteredPayments, manualBot])
+
+  // Calcular métricas do bot manual (sempre calcular, mesmo sem bot configurado)
+  const manualBotMetrics = useMemo(() => {
+    const pixGenerated = manualBotPayments.length
+    const pixPaid = manualBotPayments.filter((p) => p.status === "paid").length
+    const pixPending = manualBotPayments.filter((p) => p.status === "pending").length
+
+    const totalRevenue = manualBotPayments
       .filter((p) => p.status === "paid")
       .reduce((sum, p) => sum + p.amount, 0)
 
-    const totalGenerated = filteredPayments.reduce((sum, p) => sum + p.amount, 0)
+    const totalGenerated = manualBotPayments.reduce((sum, p) => sum + p.amount, 0)
+
+    // Valor líquido descontando R$ 0,75 (75 centavos) de cada venda
+    const netRevenue = totalRevenue - (pixPaid * 75)
+
+    return {
+      pixGenerated,
+      pixPaid,
+      pixPending,
+      totalRevenue,
+      totalGenerated,
+      netRevenue,
+    }
+  }, [manualBotPayments])
+
+  // Calcular métricas principais (todos os bots exceto manual)
+  const metrics = useMemo(() => {
+    const pixGenerated = regularBotPayments.length
+    const pixPaid = regularBotPayments.filter((p) => p.status === "paid").length
+    const pixPending = regularBotPayments.filter((p) => p.status === "pending").length
+    const pixExpired = regularBotPayments.filter((p) => p.status === "expired").length
+    const pixCancelled = regularBotPayments.filter((p) => p.status === "cancelled").length
+
+    const totalRevenue = regularBotPayments
+      .filter((p) => p.status === "paid")
+      .reduce((sum, p) => sum + p.amount, 0)
+
+    const totalGenerated = regularBotPayments.reduce((sum, p) => sum + p.amount, 0)
 
     // Ticket médio (apenas dos pagos)
     const averageTicket = pixPaid > 0 ? totalRevenue / pixPaid : 0
@@ -152,7 +190,7 @@ export default function PaymentsPage() {
 
     // Métodos de pagamento (todos são PIX no momento)
     const paymentMethods = {
-      PIX: filteredPayments
+      PIX: regularBotPayments
         .filter((p) => p.status === "paid")
         .reduce((sum, p) => sum + p.amount, 0),
     }
@@ -175,7 +213,7 @@ export default function PaymentsPage() {
       paymentMethods,
       netRevenue,
     }
-  }, [filteredPayments])
+  }, [regularBotPayments])
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -331,7 +369,7 @@ export default function PaymentsPage() {
                   <p className="text-sm font-medium text-muted-foreground mb-1">PENDENTES</p>
                   <p className="text-2xl font-bold text-foreground mb-1">{metrics.pixPending}</p>
                   <p className="text-xs text-muted-foreground">{formatCurrency(
-                    filteredPayments
+                    regularBotPayments
                       .filter((p) => p.status === "pending")
                       .reduce((sum, p) => sum + p.amount, 0)
                   )}</p>
@@ -368,6 +406,35 @@ export default function PaymentsPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Card do Bot Manual */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5 text-primary" />
+                  Bot Manual {manualBot ? `- ${manualBot.name}` : "(Não configurado)"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">PIX Gerados</p>
+                    <p className="text-2xl font-bold text-foreground">{manualBotMetrics.pixGenerated}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(manualBotMetrics.totalGenerated)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">PIX Pagos</p>
+                    <p className="text-2xl font-bold text-green-500">{manualBotMetrics.pixPaid}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(manualBotMetrics.totalRevenue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Valor Líquido</p>
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(manualBotMetrics.netRevenue)}</p>
+                    <p className="text-xs text-muted-foreground">Descontado R$ 0,75 por venda</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Transações Recentes */}
             <Card>

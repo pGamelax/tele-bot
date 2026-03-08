@@ -650,11 +650,31 @@ export class BotManager {
     });
 
     try {
+      // Validar token antes de iniciar
+      try {
+        await bot.api.getMe();
+      } catch (tokenError: any) {
+        const errorCode = tokenError?.error_code || tokenError?.error?.error_code;
+        if (errorCode === 401) {
+          console.warn(`⚠️  [Bot ${botId}] Token inválido ou expirado. Bot não será iniciado.`);
+          return; // Não iniciar o bot se o token for inválido
+        }
+        throw tokenError; // Re-lançar outros erros
+      }
+      
       bot.start();
       this.bots.set(botId, bot);
       this.botConfigs.set(botId, config);
+      console.log(`✅ [Bot ${botId}] Bot iniciado com sucesso`);
     } catch (error: any) {
-      console.error(`[Bot ${botId}] Erro ao iniciar bot:`, error);
+      const errorCode = error?.error_code || error?.error?.error_code;
+      const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+      
+      if (errorCode === 401 || errorDesc.includes("unauthorized")) {
+        console.warn(`⚠️  [Bot ${botId}] Token inválido ou expirado. Bot não será iniciado.`);
+      } else {
+        console.error(`❌ [Bot ${botId}] Erro ao iniciar bot:`, error.message || error);
+      }
     }
   }
 
@@ -767,11 +787,35 @@ export class BotManager {
           throw new Error(`Configuração do bot ${botId} não disponível`);
         }
 
-        await this.startBot(botId, botData.telegramToken, config);
-        bot = this.bots.get(botId);
-        
-        if (!bot) {
-          throw new Error(`Falha ao inicializar bot ${botId}`);
+        try {
+          await this.startBot(botId, botData.telegramToken, config);
+          bot = this.bots.get(botId);
+          
+          if (!bot) {
+            // Verificar se o bot não foi iniciado devido a token inválido
+            // Tentar validar o token para confirmar
+            try {
+              const testBot = new Bot(botData.telegramToken);
+              await testBot.api.getMe();
+              // Se chegou aqui, o token é válido mas houve outro problema
+              throw new Error(`Falha ao inicializar bot ${botId}`);
+            } catch (tokenError: any) {
+              const errorCode = tokenError?.error_code || tokenError?.error?.error_code;
+              if (errorCode === 401) {
+                console.warn(`⚠️  [Bot ${botId}] Token inválido. Pulando reenvio.`);
+                // Retornar erro específico para que a fila de reenvio possa tratar
+                throw new Error(`Token inválido para bot ${botId}`);
+              }
+              throw new Error(`Falha ao inicializar bot ${botId}`);
+            }
+          }
+        } catch (startError: any) {
+          // Se o erro já indica token inválido, re-lançar
+          if (startError.message?.includes("Token inválido")) {
+            throw startError;
+          }
+          // Outros erros de inicialização
+          throw new Error(`Falha ao inicializar bot ${botId}: ${startError.message || startError}`);
         }
       }
 
@@ -1084,6 +1128,15 @@ export class BotManager {
         }
       }
     } catch (error: any) {
+      const errorCode = error?.error_code || error?.error?.error_code;
+      const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+      
+      // Verificar se é erro de token inválido (401)
+      if (errorCode === 401 || errorDesc.includes("unauthorized")) {
+        console.warn(`⚠️  [Bot ${botId}] Token inválido ao enviar mensagem de reenvio.`);
+        throw error; // Re-lançar para que a fila de reenvio possa tratar
+      }
+      
       // Verificar se é erro de bloqueio no catch final
       const isBlockedError = this.isBlockedError(error);
       if (isBlockedError && lead) {
@@ -1205,7 +1258,10 @@ export class BotManager {
 
   async restartAllBots() {
     const activeBots = await prisma.bot.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        isManual: false, // Não iniciar bots manuais automaticamente
+      },
       include: { 
         paymentButtons: true,
         resendImages: {
@@ -1267,7 +1323,14 @@ export class BotManager {
         paymentConfirmedMessage: bot.paymentConfirmedMessage,
         });
       } catch (error: any) {
-        console.error(`Erro ao iniciar bot:`, error);
+        const errorCode = error?.error_code || error?.error?.error_code;
+        const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+        
+        if (errorCode === 401 || errorDesc.includes("unauthorized")) {
+          console.warn(`⚠️  [Bot ${bot.id}] Token inválido ou expirado. Verifique o token do bot "${bot.name}"`);
+        } else {
+          console.error(`❌ [Bot ${bot.id}] Erro ao iniciar bot "${bot.name}":`, error.message || error);
+        }
       }
       
       if (i < activeBots.length - 1) {

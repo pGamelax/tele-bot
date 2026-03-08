@@ -168,6 +168,14 @@ export const resendWorker = new Worker(
           await removeResendJobs(botId, chatId);
           return { success: false, reason: "bot_not_found" };
         }
+        
+        // Verificar se é erro de token inválido (401) - usando errorCode e errorDesc já declarados acima
+        if (errorCode === 401 || errorDesc.includes("unauthorized") || error.message?.includes("Token inválido")) {
+          console.warn(`⚠️  [ResendQueue] Token inválido para bot ${botId}. Pule este reenvio.`);
+          await removeResendJobs(botId, chatId);
+          return { success: false, reason: "invalid_token" };
+        }
+        
         console.error(`[ResendQueue] Erro ao enviar mensagem de reenvio:`, error?.message || error);
         return { success: false, reason: "send_error", error: error?.message || String(error) };
       }

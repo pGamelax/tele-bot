@@ -23,6 +23,7 @@ import {
   User,
   Settings,
   DollarSign,
+  Send,
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -44,6 +45,7 @@ export function Navbar() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/bots", label: "Bots", icon: Bot },
+    { href: "/manual-bot", label: "Bot Manual", icon: Send },
     { href: "/leads", label: "Leads", icon: Users },
     { href: "/payments", label: "Financeiro", icon: DollarSign },
   ]
