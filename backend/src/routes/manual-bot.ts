@@ -1,8 +1,15 @@
 import { Elysia } from "elysia";
 import { PrismaClient } from "@prisma/client";
 import { Bot, InputFile } from "grammy";
+import { randomUUID } from "crypto";
 import { auth } from "../lib/auth";
 import { isCloudinaryUrl } from "../services/cloudinary";
+import {
+  setSendJob,
+  setSendResult,
+  setSendError,
+  getSendResult,
+} from "../services/manual-bot-send";
 
 const prisma = new PrismaClient();
 
@@ -41,6 +48,163 @@ async function getMediaInput(mediaUrl: string): Promise<string | InputFile> {
   }
 }
 
+async function runManualBotSend(userId: string, jobId: string) {
+  try {
+    const bot = await prisma.bot.findFirst({
+      where: { userId, isManual: true },
+      include: {
+        paymentButtons: { where: { type: "start" }, orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    if (!bot) {
+      setSendError(jobId, userId, "Bot manual não encontrado");
+      return;
+    }
+
+    const userBots = await prisma.bot.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const botIds = userBots.map((b) => b.id);
+
+    if (botIds.length === 0) {
+      setSendResult(jobId, userId, { sent: 0, blocked: 0, errors: 0, total: 0 });
+      return;
+    }
+
+    const allLeads = await prisma.lead.findMany({
+      where: { botId: { in: botIds } },
+      select: {
+        telegramChatId: true,
+        telegramUsername: true,
+        firstName: true,
+        lastName: true,
+      },
+      distinct: ["telegramChatId"],
+    });
+
+    const blockedLeads = await prisma.manualBotBlockedLead.findMany({
+      where: { botId: bot.id },
+      select: { telegramChatId: true },
+    });
+    const blockedChatIds = new Set(blockedLeads.map((l) => l.telegramChatId));
+    const leadsToSend = allLeads.filter((l) => !blockedChatIds.has(l.telegramChatId));
+
+    const telegramBot = new Bot(bot.telegramToken);
+    let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined;
+    if (bot.paymentButtons?.length) {
+      keyboard = {
+        inline_keyboard: bot.paymentButtons.map((btn) => [
+          { text: formatButtonText(btn), callback_data: `payment_${btn.value}` },
+        ]),
+      };
+    }
+
+    const caption = (bot.startCaption || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const hasButtonMessage = !!(bot.startButtonMessage?.trim());
+    const buttonMessage = bot.startButtonMessage || undefined;
+
+    let sent = 0,
+      blocked = 0,
+      errors = 0;
+
+    for (const lead of leadsToSend) {
+      try {
+        if (bot.startImage) {
+          const isVideo = isVideoUrl(bot.startImage);
+          const media = await getMediaInput(bot.startImage);
+          const replyMarkup = hasButtonMessage ? undefined : keyboard;
+
+          if (typeof media === "string") {
+            if (isVideo) {
+              await telegramBot.api.sendVideo(parseInt(lead.telegramChatId), media, {
+                caption,
+                reply_markup: replyMarkup,
+                parse_mode: undefined,
+              });
+            } else {
+              await telegramBot.api.sendPhoto(parseInt(lead.telegramChatId), media, {
+                caption,
+                reply_markup: replyMarkup,
+                parse_mode: undefined,
+              });
+            }
+          } else {
+            if (isVideo) {
+              await telegramBot.api.sendVideo(parseInt(lead.telegramChatId), media, {
+                caption,
+                reply_markup: replyMarkup,
+                parse_mode: undefined,
+              });
+            } else {
+              await telegramBot.api.sendPhoto(parseInt(lead.telegramChatId), media, {
+                caption,
+                reply_markup: replyMarkup,
+                parse_mode: undefined,
+              });
+            }
+          }
+
+          if (hasButtonMessage && keyboard && buttonMessage) {
+            const formatted = buttonMessage.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+            await telegramBot.api.sendMessage(parseInt(lead.telegramChatId), formatted, {
+              reply_markup: keyboard,
+              parse_mode: undefined,
+            });
+          }
+        } else {
+          const messageText = caption || buttonMessage || "Olá!";
+          await telegramBot.api.sendMessage(parseInt(lead.telegramChatId), messageText, {
+            reply_markup: keyboard,
+            parse_mode: undefined,
+          });
+        }
+        sent++;
+        await new Promise((r) => setTimeout(r, 100));
+      } catch (error: any) {
+        const errorCode = error?.error_code || error?.error?.error_code;
+        const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
+        if (
+          errorCode === 403 ||
+          errorDesc.includes("bot was blocked") ||
+          errorDesc.includes("chat not found") ||
+          errorDesc.includes("user is deactivated") ||
+          errorDesc.includes("forbidden") ||
+          errorDesc.includes("blocked")
+        ) {
+          try {
+            await prisma.manualBotBlockedLead.upsert({
+              where: {
+                botId_telegramChatId: { botId: bot.id, telegramChatId: lead.telegramChatId },
+              },
+              create: {
+                botId: bot.id,
+                telegramChatId: lead.telegramChatId,
+                telegramUsername: lead.telegramUsername || null,
+                firstName: lead.firstName || null,
+                lastName: lead.lastName || null,
+              },
+              update: {},
+            });
+            blocked++;
+          } catch (dbError) {
+            console.error("Erro ao salvar lead bloqueado:", dbError);
+          }
+        } else {
+          errors++;
+          console.error(`Erro ao enviar para ${lead.telegramChatId}:`, error);
+        }
+      }
+    }
+
+    setSendResult(jobId, userId, { sent, blocked, errors, total: leadsToSend.length });
+  } catch (error: any) {
+    console.error("[ManualBotSend] Erro:", error);
+    setSendError(jobId, userId, error.message || "Erro ao enviar mensagens");
+  }
+}
+
 export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
   .derive(async ({ request }) => {
     const session = await auth.api.getSession({ headers: request.headers });
@@ -67,7 +231,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
   .get("/stats", async ({ user, set }) => {
     try {
       const userBots = await prisma.bot.findMany({
-        where: { userId: user.id },
+        where: { userId: user!.id },
         select: { id: true },
       });
       const botIds = userBots.map((b) => b.id);
@@ -94,7 +258,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
     try {
       const bot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
         include: {
@@ -138,7 +302,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
       // Verificar se já existe bot manual
       const existingBot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
       });
@@ -177,7 +341,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
         // Criar novo bot manual
         bot = await prisma.bot.create({
           data: {
-            userId: user.id,
+            userId: user!.id,
             name,
             telegramToken,
             syncpayApiKey,
@@ -223,7 +387,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
 
       const bot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
       });
@@ -246,13 +410,12 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
       return { error: error.message || "Erro ao atualizar token" };
     }
   })
-  // Disparar mensagens para todos os leads
+  // Disparar mensagens para todos os leads (em background para evitar timeout)
   .post("/send", async ({ user, set }) => {
     try {
-      // Buscar bot manual
       const bot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
         include: {
@@ -268,188 +431,43 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
         return { error: "Bot manual não encontrado" };
       }
 
-      // Buscar todos os leads de todos os bots do usuário
-      const userBots = await prisma.bot.findMany({
-        where: { userId: user.id },
-        select: { id: true },
-      });
+      const jobId = randomUUID();
+      setSendJob(jobId, user!.id);
 
-      const botIds = userBots.map((b) => b.id);
+      // Executar em background para evitar timeout 502
+      setImmediate(() => runManualBotSend(user!.id, jobId));
 
-      if (botIds.length === 0) {
-        return { 
-          sent: 0, 
-          blocked: 0, 
-          errors: 0,
-          message: "Nenhum bot encontrado" 
-        };
-      }
-
-      // Buscar todos os leads únicos (por telegramChatId)
-      const allLeads = await prisma.lead.findMany({
-        where: {
-          botId: { in: botIds },
-        },
-        select: {
-          telegramChatId: true,
-          telegramUsername: true,
-          firstName: true,
-          lastName: true,
-        },
-        distinct: ["telegramChatId"],
-      });
-
-      // Buscar leads bloqueados do bot manual
-      const blockedLeads = await prisma.manualBotBlockedLead.findMany({
-        where: { botId: bot.id },
-        select: { telegramChatId: true },
-      });
-
-      const blockedChatIds = new Set(blockedLeads.map((l) => l.telegramChatId));
-
-      // Filtrar leads não bloqueados
-      const leadsToSend = allLeads.filter(
-        (lead) => !blockedChatIds.has(lead.telegramChatId)
-      );
-
-      // Criar instância do bot do Telegram
-      const telegramBot = new Bot(bot.telegramToken);
-
-      // Preparar botões
-      let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
-      if (bot.paymentButtons && bot.paymentButtons.length > 0) {
-        keyboard = {
-          inline_keyboard: bot.paymentButtons.map((btn) => [
-            {
-              text: formatButtonText(btn),
-              callback_data: `payment_${btn.value}`,
-            },
-          ]),
-        };
-      }
-
-      const caption = (bot.startCaption || "").replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      const hasButtonMessage = bot.startButtonMessage && bot.startButtonMessage.trim().length > 0;
-      const buttonMessage = bot.startButtonMessage || undefined;
-
-      let sent = 0;
-      let blocked = 0;
-      let errors = 0;
-
-      // Enviar mensagens
-      for (const lead of leadsToSend) {
-        try {
-          if (bot.startImage) {
-            const isVideo = isVideoUrl(bot.startImage);
-            const media = await getMediaInput(bot.startImage);
-            
-            // Se há mensagem específica para botões, enviar mídia sem botões e depois mensagem separada
-            const replyMarkup = hasButtonMessage ? undefined : keyboard;
-            
-            if (typeof media === 'string') {
-              if (isVideo) {
-                await telegramBot.api.sendVideo(parseInt(lead.telegramChatId), media, {
-                  caption: caption,
-                  reply_markup: replyMarkup,
-                  parse_mode: undefined,
-                });
-              } else {
-                await telegramBot.api.sendPhoto(parseInt(lead.telegramChatId), media, {
-                  caption: caption,
-                  reply_markup: replyMarkup,
-                  parse_mode: undefined,
-                });
-              }
-            } else {
-              // Media é um InputFile
-              if (isVideo) {
-                await telegramBot.api.sendVideo(parseInt(lead.telegramChatId), media, {
-                  caption: caption,
-                  reply_markup: replyMarkup,
-                  parse_mode: undefined,
-                });
-              } else {
-                await telegramBot.api.sendPhoto(parseInt(lead.telegramChatId), media, {
-                  caption: caption,
-                  reply_markup: replyMarkup,
-                  parse_mode: undefined,
-                });
-              }
-            }
-
-            // Se há mensagem específica para botões, enviar mensagem separada com os botões
-            if (hasButtonMessage && keyboard && buttonMessage) {
-              const formattedButtonMessage = buttonMessage.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-              await telegramBot.api.sendMessage(parseInt(lead.telegramChatId), formattedButtonMessage, {
-                reply_markup: keyboard,
-                parse_mode: undefined,
-              });
-            }
-          } else {
-            // Enviar apenas texto
-            const messageText = caption || buttonMessage || "Olá!";
-            await telegramBot.api.sendMessage(parseInt(lead.telegramChatId), messageText, {
-              reply_markup: keyboard,
-              parse_mode: undefined,
-            });
-          }
-
-          sent++;
-          
-          // Pequeno delay para evitar rate limit
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error: any) {
-          const errorCode = error?.error_code || error?.error?.error_code;
-          const errorDesc = (error?.description || error?.error?.description || error?.message || "").toLowerCase();
-          
-          // Verificar se é erro de bloqueio
-          if (
-            errorCode === 403 ||
-            errorDesc.includes("bot was blocked") ||
-            errorDesc.includes("chat not found") ||
-            errorDesc.includes("user is deactivated") ||
-            errorDesc.includes("forbidden") ||
-            errorDesc.includes("blocked")
-          ) {
-            // Adicionar à lista de bloqueados
-            try {
-              await prisma.manualBotBlockedLead.upsert({
-                where: {
-                  botId_telegramChatId: {
-                    botId: bot.id,
-                    telegramChatId: lead.telegramChatId,
-                  },
-                },
-                create: {
-                  botId: bot.id,
-                  telegramChatId: lead.telegramChatId,
-                  telegramUsername: lead.telegramUsername || null,
-                  firstName: lead.firstName || null,
-                  lastName: lead.lastName || null,
-                },
-                update: {},
-              });
-              blocked++;
-            } catch (dbError) {
-              console.error("Erro ao salvar lead bloqueado:", dbError);
-            }
-          } else {
-            errors++;
-            console.error(`Erro ao enviar para ${lead.telegramChatId}:`, error);
-          }
-        }
-      }
-
-      return {
-        sent,
-        blocked,
-        errors,
-        total: leadsToSend.length,
-        message: `Enviado: ${sent}, Bloqueados: ${blocked}, Erros: ${errors}`,
-      };
+      set.status = 202;
+      return { jobId, message: "Envio iniciado em background" };
     } catch (error: any) {
       set.status = 500;
       return { error: error.message || "Erro ao disparar mensagens" };
+    }
+  })
+  // Consultar status do envio
+  .get("/send/status/:jobId", async ({ user, params, set }) => {
+    try {
+      const data = getSendResult(params.jobId, user!.id);
+      if (!data) {
+        set.status = 404;
+        return { error: "Job não encontrado ou expirado" };
+      }
+      if (data.status === "processing") {
+        return { status: "processing" };
+      }
+      if (data.status === "error") {
+        return { status: "error", error: data.error };
+      }
+      return {
+        status: "completed",
+        sent: data.sent,
+        blocked: data.blocked,
+        errors: data.errors,
+        total: data.total,
+      };
+    } catch (error: any) {
+      set.status = 500;
+      return { error: error.message || "Erro ao consultar status" };
     }
   })
   // Listar leads bloqueados
@@ -457,7 +475,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
     try {
       const bot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
       });
@@ -482,7 +500,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
     try {
       const bot = await prisma.bot.findFirst({
         where: {
-          userId: user.id,
+          userId: user!.id,
           isManual: true,
         },
       });

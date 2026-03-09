@@ -473,6 +473,15 @@ export function useUpdateManualBotToken() {
   })
 }
 
+export async function fetchManualBotSendStatus(jobId: string) {
+  const response = await fetchWithAuth(`/api/manual-bot/send/status/${jobId}`)
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "Erro ao consultar status")
+  }
+  return response.json()
+}
+
 export function useSendManualBotMessages() {
   const queryClient = useQueryClient()
   
@@ -485,7 +494,12 @@ export function useSendManualBotMessages() {
         const error = await response.json()
         throw new Error(error.error || "Erro ao disparar mensagens")
       }
-      return response.json()
+      const data = await response.json()
+      // 202 = processamento em background, retorna jobId
+      if (response.status === 202 && data.jobId) {
+        return { jobId: data.jobId, status: "processing" }
+      }
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manualBotBlockedLeads"] })

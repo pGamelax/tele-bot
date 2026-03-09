@@ -32,6 +32,21 @@ async function initializeBots() {
   }
 }
 
+function getAllowedOrigins(): string[] {
+  const origins = new Set<string>([
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "https://bot-frontend.clashdata.pro",
+  ]);
+  if (process.env.FRONTEND_URL) {
+    origins.add(process.env.FRONTEND_URL);
+  }
+  if (process.env.ALLOWED_ORIGINS) {
+    process.env.ALLOWED_ORIGINS.split(",").forEach((o) => origins.add(o.trim()));
+  }
+  return Array.from(origins);
+}
+
 const userMiddleware = async (request: Request) => {
   const session = await auth.api.getSession({ headers: request.headers });
 
@@ -51,11 +66,7 @@ const userMiddleware = async (request: Request) => {
 const app = new Elysia()
   .options("*", ({ set, request }) => {
       const origin = request.headers.get("origin")
-      const allowedOrigins = [
-        process.env.FRONTEND_URL || "http://localhost:3001",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-      ]
+      const allowedOrigins = getAllowedOrigins()
       
       if (origin && allowedOrigins.includes(origin)) {
         set.headers["Access-Control-Allow-Origin"] = origin
@@ -70,11 +81,7 @@ const app = new Elysia()
   .use(cors({
     credentials: true,
     origin: (request: Request) => {
-      const allowedOrigins = [
-        process.env.FRONTEND_URL || "http://localhost:3001",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-      ]
+      const allowedOrigins = getAllowedOrigins()
       const origin = request.headers.get("origin")
       if (!origin) return true
       const isAllowed = allowedOrigins.includes(origin)

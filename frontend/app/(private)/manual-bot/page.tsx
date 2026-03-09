@@ -11,6 +11,7 @@ import {
   useUpdateManualBotToken,
   useSendManualBotMessages,
   useRemoveBlockedLead,
+  fetchManualBotSendStatus,
 } from "@/lib/api-client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -159,6 +160,46 @@ export default function ManualBotPage() {
 
     try {
       const result = await sendMessages.mutateAsync()
+
+      // Envio em background (202) - fazer polling do status
+      if (result?.jobId) {
+        toast({
+          title: "Envio iniciado",
+          description: "Processando em background. Aguarde...",
+        })
+        const pollStatus = (): Promise<void> =>
+          fetchManualBotSendStatus(result.jobId).then((status) => {
+            if (status.status === "completed") {
+              setSendResult({
+                sent: status.sent || 0,
+                blocked: status.blocked || 0,
+                errors: status.errors || 0,
+                total: status.total || 0,
+              })
+              refetchBlocked()
+              setIsSending(false)
+              toast({
+                title: "Disparo concluído",
+                description: `Enviado: ${status.sent}, Bloqueados: ${status.blocked}, Erros: ${status.errors}`,
+              })
+              return
+            }
+            if (status.status === "error") {
+              setIsSending(false)
+              toast({
+                title: "Erro",
+                description: status.error || "Erro ao enviar mensagens",
+                variant: "destructive",
+              })
+              return
+            }
+            return new Promise((r) => setTimeout(r, 2000)).then(pollStatus)
+          })
+        await pollStatus()
+        return
+      }
+
+      // Resposta direta (compatibilidade)
       setSendResult({
         sent: result.sent || 0,
         blocked: result.blocked || 0,
