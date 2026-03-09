@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import {
   useManualBot,
+  useManualBotStats,
   useManualBotBlockedLeads,
   useCreateOrUpdateManualBot,
   useUpdateManualBotToken,
@@ -26,6 +27,7 @@ import {
   RefreshCw,
   Users,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { ImageUpload } from "@/components/ui/image-upload"
@@ -35,6 +37,7 @@ export default function ManualBotPage() {
   const router = useRouter()
   const { data: session } = authClient.useSession()
   const { data: bot, isLoading: botLoading } = useManualBot()
+  const { data: stats } = useManualBotStats()
   const { data: blockedLeads = [], refetch: refetchBlocked } = useManualBotBlockedLeads()
   const createOrUpdateBot = useCreateOrUpdateManualBot()
   const updateToken = useUpdateManualBotToken()
@@ -50,6 +53,7 @@ export default function ManualBotPage() {
     startImage: "",
     startCaption: "",
     startButtonMessage: "",
+    paymentConfirmedMessage: "",
   })
 
   const [paymentButtons, setPaymentButtons] = useState<Array<{ text: string; value: number }>>([])
@@ -78,6 +82,7 @@ export default function ManualBotPage() {
         startImage: bot.startImage || "",
         startCaption: bot.startCaption || "",
         startButtonMessage: bot.startButtonMessage || "",
+        paymentConfirmedMessage: bot.paymentConfirmedMessage || "",
       })
       setPaymentButtons(
         bot.paymentButtons?.map((btn) => ({ text: btn.text, value: btn.value })) || []
@@ -97,6 +102,7 @@ export default function ManualBotPage() {
         startImage: formData.startImage || null,
         startCaption: formData.startCaption || null,
         startButtonMessage: formData.startButtonMessage || null,
+        paymentConfirmedMessage: formData.paymentConfirmedMessage || null,
         paymentButtons,
       })
       toast({
@@ -423,6 +429,30 @@ export default function ManualBotPage() {
                 </CardContent>
               </Card>
 
+              {/* Resposta após confirmação de pagamento */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5" />
+                    Resposta após Pagamento
+                  </CardTitle>
+                  <CardDescription>
+                    Mensagem enviada ao cliente quando o PIX for confirmado. Use {"{amount}"} para o valor.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    value={formData.paymentConfirmedMessage}
+                    onChange={(e) =>
+                      setFormData({ ...formData, paymentConfirmedMessage: e.target.value })
+                    }
+                    placeholder="Ex: ✅ Pagamento confirmado! Obrigado pela compra de R$ {amount}."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                  />
+                </CardContent>
+              </Card>
+
               {/* Botão Salvar */}
               <div className="flex justify-end">
                 <Button type="submit" disabled={createOrUpdateBot.isPending}>
@@ -529,6 +559,27 @@ export default function ManualBotPage() {
 
           {/* Lista de Leads Bloqueados */}
           <div className="space-y-6">
+            {/* Estatísticas - Quantos deram /start */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Leads com /start
+                </CardTitle>
+                <CardDescription>
+                  Total de pessoas que iniciaram conversa com seus bots
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-primary">
+                  {stats?.totalLeads ?? 0}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Disponíveis para disparo (exceto bloqueados)
+                </p>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

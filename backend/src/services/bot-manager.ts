@@ -105,12 +105,14 @@ export class BotManager {
       if (errorCode === 409 || errorDesc.includes('409') || errorDesc.includes('Conflict')) {
         await new Promise(resolve => setTimeout(resolve, 10000));
         await this.stopBot(botId).catch(() => {});
+      } else if (errorCode === 403 || errorDesc.includes('bot was blocked') || errorDesc.includes('forbidden')) {
+        // Usuário bloqueou o bot - não logar (comportamento esperado)
       } else {
         console.error(`[Bot ${botId}] Erro não tratado:`, error);
       }
     });
 
-    const sendStartMessage = async (chatId: string) => {
+    const sendStartMessage = async (chatId: string): Promise<boolean> => {
       let keyboard: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } | undefined = undefined;
       if (config.paymentButtons && config.paymentButtons.length > 0) {
         keyboard = {
@@ -194,7 +196,7 @@ export class BotManager {
             } catch (leadError) {
               // Ignorar erro ao atualizar lead
             }
-            throw error;
+            return false; // Usuário bloqueou o bot - não propagar erro
           }
           // Se não for bloqueio, tentar enviar apenas texto
           try {
@@ -229,6 +231,7 @@ export class BotManager {
               } catch (leadError) {
                 // Ignorar erro ao atualizar lead
               }
+              return false; // Usuário bloqueou o bot - não propagar erro
             }
             throw messageError;
           }
@@ -268,10 +271,12 @@ export class BotManager {
             } catch (leadError) {
               // Ignorar erro ao atualizar lead
             }
+            return false; // Usuário bloqueou o bot - não propagar erro
           }
           throw error;
         }
       }
+      return true;
     };
 
     const sendResendMessage = async (chatId: string) => {
@@ -559,9 +564,10 @@ export class BotManager {
         }
 
         const hasPurchased = await hasUserPurchased(chatId);
-        await sendStartMessage(chatId);
+        const sent = await sendStartMessage(chatId);
 
-        if (!hasPurchased) {
+        // Não agendar reenvios se o usuário bloqueou o bot
+        if (sent && !hasPurchased) {
           await startResendSchedule(chatId);
         }
       } catch (error) {
@@ -1061,7 +1067,7 @@ export class BotManager {
                   parse_mode: undefined,
                 });
               }
-            } catch (textError) {
+            } catch (textError: any) {
               // Verificar se é erro de bloqueio
               const isBlockedError = this.isBlockedError(textError);
               if (isBlockedError && lead) {
@@ -1137,13 +1143,14 @@ export class BotManager {
         throw error; // Re-lançar para que a fila de reenvio possa tratar
       }
       
-      // Verificar se é erro de bloqueio no catch final
+      // Verificar se é erro de bloqueio no catch final - propagar para o worker tratar
       const isBlockedError = this.isBlockedError(error);
-      if (isBlockedError && lead) {
-        await prisma.lead.update({
-          where: { id: lead.id },
+      if (isBlockedError) {
+        await prisma.lead.updateMany({
+          where: { botId, telegramChatId: chatId },
           data: { isBlocked: true },
         });
+        throw error; // Worker trata silenciosamente
       }
       console.error(`[BotManager] Erro ao enviar mensagem de reenvio:`, error);
       throw error;

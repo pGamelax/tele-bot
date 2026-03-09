@@ -361,6 +361,7 @@ export interface ManualBot {
   startImage?: string | null
   startCaption?: string | null
   startButtonMessage?: string | null
+  paymentConfirmedMessage?: string | null
   paymentButtons: PaymentButton[]
   createdAt: string
   updatedAt: string
@@ -392,6 +393,20 @@ export function useManualBot() {
   })
 }
 
+export function useManualBotStats() {
+  return useQuery({
+    queryKey: ["manualBotStats"],
+    queryFn: async () => {
+      const response = await fetchWithAuth(`/api/manual-bot/stats`)
+      if (!response.ok) {
+        throw new Error("Erro ao buscar estatísticas do bot manual")
+      }
+      const data = await response.json()
+      return { totalLeads: data.totalLeads ?? 0 } as { totalLeads: number }
+    },
+  })
+}
+
 export function useManualBotBlockedLeads() {
   return useQuery({
     queryKey: ["manualBotBlockedLeads"],
@@ -418,6 +433,7 @@ export function useCreateOrUpdateManualBot() {
       startImage?: string | null
       startCaption?: string | null
       startButtonMessage?: string | null
+      paymentConfirmedMessage?: string | null
       paymentButtons?: Array<{ text: string; value: number }>
     }) => {
       const response = await fetchWithAuth(`/api/manual-bot`, {

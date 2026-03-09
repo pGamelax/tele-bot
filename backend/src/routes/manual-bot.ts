@@ -63,6 +63,32 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
       return { error: "Não autorizado" };
     }
   })
+  // Estatísticas do bot manual (total de leads que deram /start)
+  .get("/stats", async ({ user, set }) => {
+    try {
+      const userBots = await prisma.bot.findMany({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      const botIds = userBots.map((b) => b.id);
+
+      if (botIds.length === 0) {
+        return { totalLeads: 0 };
+      }
+
+      const uniqueLeads = await prisma.lead.findMany({
+        where: { botId: { in: botIds } },
+        select: { telegramChatId: true },
+        distinct: ["telegramChatId"],
+      });
+      const totalLeads = uniqueLeads.length;
+
+      return { totalLeads };
+    } catch (error: any) {
+      set.status = 500;
+      return { error: error.message || "Erro ao buscar estatísticas" };
+    }
+  })
   // Obter bot manual do usuário
   .get("/", async ({ user, set }) => {
     try {
@@ -101,6 +127,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
         startCaption,
         startButtonMessage,
         paymentButtons,
+        paymentConfirmedMessage,
       } = body as any;
 
       if (!name || !telegramToken || !syncpayApiKey || !syncpayApiSecret) {
@@ -129,6 +156,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
             startImage: startImage || null,
             startCaption: startCaption || null,
             startButtonMessage: startButtonMessage || null,
+            paymentConfirmedMessage: paymentConfirmedMessage || null,
             paymentButtons: {
               deleteMany: { type: "start" },
               create: (paymentButtons || []).map((btn: any) => ({
@@ -157,6 +185,7 @@ export const manualBotRoutes = new Elysia({ prefix: "/api/manual-bot" })
             startImage: startImage || null,
             startCaption: startCaption || null,
             startButtonMessage: startButtonMessage || null,
+            paymentConfirmedMessage: paymentConfirmedMessage || null,
             isManual: true,
             isActive: false, // Bot manual não precisa estar ativo
             paymentButtons: {

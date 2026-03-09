@@ -223,6 +223,10 @@ export async function scheduleResends(
       return;
     }
 
+    if (lead?.isBlocked) {
+      return;
+    }
+
     const paidPayment = await prisma.payment.findFirst({
       where: {
         botId,

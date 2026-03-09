@@ -289,7 +289,7 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
             where: { id: payment.botId },
           });
 
-          if (bot && bot.isActive) {
+          if (bot && (bot.isActive || bot.isManual)) {
             const { Bot } = await import("grammy");
             const telegramBot = new Bot(bot.telegramToken);
             
