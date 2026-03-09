@@ -84,6 +84,7 @@ export interface Bot {
   facebookPixelId?: string | null
   facebookAccessToken?: string | null
   paymentConfirmedMessage?: string | null
+  upsellImage?: string | null
   upsellMessage?: string | null
   upsellButtonText?: string | null
   upsellButtonValue?: number | null
@@ -224,6 +225,7 @@ interface BotInput {
   facebookPixelId?: string | null
   facebookAccessToken?: string | null
   paymentConfirmedMessage?: string | null
+  upsellImage?: string | null
   upsellMessage?: string | null
   upsellButtonText?: string | null
   upsellButtonValue?: number

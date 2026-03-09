@@ -305,23 +305,37 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
               normalizedMessage
             );
 
-            // Upsell - oferta adicional após compra
-            if (bot.upsellMessage && bot.upsellMessage.trim()) {
-              const upsellText = bot.upsellMessage.replace(/\{amount\}/g, (payment.amount / 100).toFixed(2));
-              const normalizedUpsell = upsellText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            // Upsell - oferta adicional após compra (mensagem e/ou imagem/vídeo)
+            const hasUpsellMessage = bot.upsellMessage && bot.upsellMessage.trim();
+            const hasUpsellMedia = bot.upsellImage && bot.upsellImage.trim();
+            const hasUpsellButton = bot.upsellButtonText && bot.upsellButtonText.trim() && bot.upsellButtonValue && bot.upsellButtonValue > 0;
 
-              if (bot.upsellButtonText && bot.upsellButtonText.trim() && bot.upsellButtonValue && bot.upsellButtonValue > 0) {
-                const price = (bot.upsellButtonValue / 100).toFixed(2).replace('.', ',');
-                const buttonText = `R$ ${price} - ${bot.upsellButtonText}`;
-                await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), normalizedUpsell, {
-                  reply_markup: {
+            if (hasUpsellMessage || hasUpsellMedia) {
+              const upsellText = hasUpsellMessage
+                ? bot.upsellMessage!.replace(/\{amount\}/g, (payment.amount / 100).toFixed(2)).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+                : '';
+              const isVideo = hasUpsellMedia && /\.(mp4|webm|ogg|mov)$/i.test(bot.upsellImage!);
+              const replyMarkup = hasUpsellButton
+                ? {
                     inline_keyboard: [[
-                      { text: buttonText, callback_data: `payment_${bot.upsellButtonValue}` }
+                      { text: `R$ ${(bot.upsellButtonValue! / 100).toFixed(2).replace('.', ',')} - ${bot.upsellButtonText!.trim()}`, callback_data: `payment_${bot.upsellButtonValue}` }
                     ]],
-                  },
-                });
+                  }
+                : undefined;
+
+              if (hasUpsellMedia) {
+                const opts = { caption: upsellText || undefined, reply_markup: replyMarkup };
+                if (isVideo) {
+                  await telegramBot.api.sendVideo(parseInt(payment.telegramChatId), bot.upsellImage!, opts);
+                } else {
+                  await telegramBot.api.sendPhoto(parseInt(payment.telegramChatId), bot.upsellImage!, opts);
+                }
               } else {
-                await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), normalizedUpsell);
+                if (replyMarkup) {
+                  await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), upsellText, { reply_markup: replyMarkup });
+                } else {
+                  await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), upsellText);
+                }
               }
             }
           }

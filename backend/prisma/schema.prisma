@@ -99,6 +99,7 @@ model Bot {
   // Mensagem após confirmação de pagamento
   paymentConfirmedMessage String?  // Mensagem enviada após confirmação de pagamento
   // Upsell - oferta adicional após compra
+  upsellImage      String?  // URL da imagem ou vídeo do upsell
   upsellMessage    String?  @db.Text // Mensagem de upsell enviada após confirmação
   upsellButtonText String?  // Texto do botão de upsell (ex: "Quero aproveitar!")
   upsellButtonValue Int?    // Valor em centavos do produto de upsell

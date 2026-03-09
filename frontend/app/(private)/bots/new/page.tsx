@@ -7,7 +7,7 @@ import { useCreateBot } from "@/lib/api-client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { ArrowLeft, Plus, X, Save, Bot as BotIcon, MessageSquare, Clock, Settings, DollarSign } from "lucide-react"
+import { ArrowLeft, Plus, X, Save, Bot as BotIcon, MessageSquare, Clock, Settings, DollarSign, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { ImageUpload } from "@/components/ui/image-upload"
 import { MultipleImageUpload } from "@/components/ui/multiple-image-upload"
@@ -35,6 +35,7 @@ export default function NewBotPage() {
     facebookPixelId: "",
     facebookAccessToken: "",
     paymentConfirmedMessage: "",
+    upsellImage: "",
     upsellMessage: "",
     upsellButtonText: "",
     upsellButtonValue: 0,
@@ -52,7 +53,7 @@ export default function NewBotPage() {
   const [resendButtonGroups, setResendButtonGroups] = useState<
     Array<Array<{ text: string; value: number }>>
   >([])
-  const [activeTab, setActiveTab] = useState<"basic" | "start" | "resend" | "advanced">("basic")
+  const [activeTab, setActiveTab] = useState<"basic" | "start" | "resend" | "upsell" | "advanced">("basic")
 
   useEffect(() => {
     if (!session) {
@@ -66,6 +67,7 @@ export default function NewBotPage() {
     try {
       await createBot.mutateAsync({
         ...formData,
+        upsellImage: formData.upsellImage || undefined,
         resendImages,
         resendCaptions,
         paymentButtons,
@@ -160,6 +162,7 @@ export default function NewBotPage() {
     { id: "basic", label: "Básico", icon: BotIcon },
     { id: "start", label: "Mensagem Inicial", icon: MessageSquare },
     { id: "resend", label: "Remarketing", icon: Clock },
+    { id: "upsell", label: "Upsell", icon: TrendingUp },
     { id: "advanced", label: "Avançado", icon: Settings },
   ]
 
@@ -610,6 +613,80 @@ export default function NewBotPage() {
             </Card>
           )}
 
+          {/* Tab: Upsell */}
+          {activeTab === "upsell" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Upsell - Oferta após compra
+                </CardTitle>
+                <CardDescription>
+                  Mensagem, imagem/vídeo e botão opcional enviados após a confirmação do pagamento para oferecer um produto adicional.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ImageUpload
+                  label="Imagem/Video do Upsell"
+                  value={formData.upsellImage}
+                  onChange={(url) => setFormData({ ...formData, upsellImage: url })}
+                  maxSizeMB={50}
+                />
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    URL da Imagem/Video (ou cole manualmente)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.upsellImage}
+                    onChange={(e) => setFormData({ ...formData, upsellImage: e.target.value })}
+                    placeholder="http://..."
+                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Mensagem de Upsell
+                  </label>
+                  <textarea
+                    value={formData.upsellMessage}
+                    onChange={(e) => setFormData({ ...formData, upsellMessage: e.target.value })}
+                    rows={3}
+                    placeholder="Ex: 🎁 Aproveite! Adicione o bônus exclusivo por apenas R$ 29,90!"
+                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use {"{amount}"} para o valor da compra anterior
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Texto do Botão (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.upsellButtonText}
+                      onChange={(e) => setFormData({ ...formData, upsellButtonText: e.target.value })}
+                      placeholder="Quero aproveitar!"
+                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Valor do Upsell (R$)
+                    </label>
+                    <PriceInput
+                      value={formData.upsellButtonValue}
+                      onChange={(v) => setFormData({ ...formData, upsellButtonValue: v })}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Preencha para adicionar botão de pagamento</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Tab: Avançado */}
           {activeTab === "advanced" && (
             <Card>
@@ -664,37 +741,6 @@ export default function NewBotPage() {
                     placeholder="Use {amount} para o valor. Ex: ✅ Obrigado! Sua compra de R$ {amount} foi confirmada."
                     className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
                   />
-                </div>
-
-                {/* Upsell */}
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <h4 className="font-medium text-foreground">Upsell - Oferta após compra</h4>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Mensagem de Upsell</label>
-                    <textarea
-                      value={formData.upsellMessage}
-                      onChange={(e) => setFormData({ ...formData, upsellMessage: e.target.value })}
-                      rows={3}
-                      placeholder="Ex: 🎁 Aproveite o bônus exclusivo!"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">Texto do Botão</label>
-                      <input
-                        type="text"
-                        value={formData.upsellButtonText}
-                        onChange={(e) => setFormData({ ...formData, upsellButtonText: e.target.value })}
-                        placeholder="Quero aproveitar!"
-                        className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">Valor (R$)</label>
-                      <PriceInput value={formData.upsellButtonValue} onChange={(v) => setFormData({ ...formData, upsellButtonValue: v })} />
-                    </div>
-                  </div>
                 </div>
 
                 {/* Recuperação de PIX */}

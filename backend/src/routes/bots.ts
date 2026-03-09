@@ -392,6 +392,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId,
         facebookAccessToken,
         paymentConfirmedMessage,
+        upsellImage,
         upsellMessage,
         upsellButtonText,
         upsellButtonValue,
@@ -419,6 +420,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId?: string;
         facebookAccessToken?: string;
         paymentConfirmedMessage?: string;
+        upsellImage?: string;
         upsellMessage?: string;
         upsellButtonText?: string;
         upsellButtonValue?: number;
@@ -452,6 +454,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           facebookPixelId: facebookPixelId || null,
           facebookAccessToken: facebookAccessToken || null,
           paymentConfirmedMessage: paymentConfirmedMessage || null,
+          upsellImage: upsellImage || null,
           upsellMessage: upsellMessage || null,
           upsellButtonText: upsellButtonText || null,
           upsellButtonValue: (upsellButtonValue && upsellButtonValue > 0) ? upsellButtonValue : null,
@@ -571,6 +574,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId,
         facebookAccessToken,
         paymentConfirmedMessage,
+        upsellImage,
         upsellMessage,
         upsellButtonText,
         upsellButtonValue,
@@ -599,6 +603,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId?: string;
         facebookAccessToken?: string;
         paymentConfirmedMessage?: string;
+        upsellImage?: string;
         upsellMessage?: string;
         upsellButtonText?: string;
         upsellButtonValue?: number;
@@ -628,6 +633,7 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
       if (facebookPixelId !== undefined) updateData.facebookPixelId = facebookPixelId || null;
       if (facebookAccessToken !== undefined) updateData.facebookAccessToken = facebookAccessToken || null;
       if (paymentConfirmedMessage !== undefined) updateData.paymentConfirmedMessage = paymentConfirmedMessage || null;
+      if (upsellImage !== undefined) updateData.upsellImage = (upsellImage && upsellImage.trim()) ? upsellImage.trim() : null;
       if (upsellMessage !== undefined) updateData.upsellMessage = (upsellMessage && upsellMessage.trim()) ? upsellMessage.trim() : null;
       if (upsellButtonText !== undefined) updateData.upsellButtonText = (upsellButtonText && upsellButtonText.trim()) ? upsellButtonText.trim() : null;
       if (upsellButtonValue !== undefined) updateData.upsellButtonValue = (upsellButtonValue && upsellButtonValue > 0) ? upsellButtonValue : null;
