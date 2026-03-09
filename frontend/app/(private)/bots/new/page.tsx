@@ -35,6 +35,12 @@ export default function NewBotPage() {
     facebookPixelId: "",
     facebookAccessToken: "",
     paymentConfirmedMessage: "",
+    upsellMessage: "",
+    upsellButtonText: "",
+    upsellButtonValue: 0,
+    pixRecoveryEnabled: true,
+    pixRecoveryMessage: "",
+    pixRecoveryDelayMinutes: 10,
   })
 
   const [resendImages, setResendImages] = useState<string[]>([])
@@ -655,9 +661,76 @@ export default function NewBotPage() {
                       setFormData({ ...formData, paymentConfirmedMessage: e.target.value })
                     }
                     rows={4}
-                    placeholder="Digite a mensagem que será enviada após o pagamento ser confirmado..."
+                    placeholder="Use {amount} para o valor. Ex: ✅ Obrigado! Sua compra de R$ {amount} foi confirmada."
                     className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
                   />
+                </div>
+
+                {/* Upsell */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="font-medium text-foreground">Upsell - Oferta após compra</h4>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Mensagem de Upsell</label>
+                    <textarea
+                      value={formData.upsellMessage}
+                      onChange={(e) => setFormData({ ...formData, upsellMessage: e.target.value })}
+                      rows={3}
+                      placeholder="Ex: 🎁 Aproveite o bônus exclusivo!"
+                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">Texto do Botão</label>
+                      <input
+                        type="text"
+                        value={formData.upsellButtonText}
+                        onChange={(e) => setFormData({ ...formData, upsellButtonText: e.target.value })}
+                        placeholder="Quero aproveitar!"
+                        className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">Valor (R$)</label>
+                      <PriceInput value={formData.upsellButtonValue} onChange={(v) => setFormData({ ...formData, upsellButtonValue: v })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recuperação de PIX */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="font-medium text-foreground">Recuperação de PIX</h4>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="pixRecoveryEnabled"
+                      checked={formData.pixRecoveryEnabled}
+                      onChange={(e) => setFormData({ ...formData, pixRecoveryEnabled: e.target.checked })}
+                      className="rounded border-input"
+                    />
+                    <label htmlFor="pixRecoveryEnabled" className="text-sm font-medium">Ativar lembrete para quem não pagou</label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Minutos para enviar lembrete</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={60}
+                      value={formData.pixRecoveryDelayMinutes}
+                      onChange={(e) => setFormData({ ...formData, pixRecoveryDelayMinutes: parseInt(e.target.value) || 10 })}
+                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 max-w-[120px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Mensagem de lembrete</label>
+                    <textarea
+                      value={formData.pixRecoveryMessage}
+                      onChange={(e) => setFormData({ ...formData, pixRecoveryMessage: e.target.value })}
+                      rows={3}
+                      placeholder="⏰ Seu PIX de R$ {amount} ainda está válido. Código: {pixCode}"
+                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

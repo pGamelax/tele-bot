@@ -648,6 +648,9 @@ export class BotManager {
           await ctx.reply(message, { parse_mode: "Markdown" });
         }
 
+        // Parar reenvio ao gerar PIX - retomará após 20 min se não pagar
+        this.stopResendSchedule(botId, chatId);
+
         this.checkPaymentStatus(botId, payment.id, pixData.id, ctx);
       } catch (error) {
         console.error(`Erro ao processar pagamento:`, error);
@@ -1267,7 +1270,6 @@ export class BotManager {
     const activeBots = await prisma.bot.findMany({
       where: { 
         isActive: true,
-        isManual: false, // Não iniciar bots manuais automaticamente
       },
       include: { 
         paymentButtons: true,

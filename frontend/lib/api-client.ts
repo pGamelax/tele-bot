@@ -84,6 +84,12 @@ export interface Bot {
   facebookPixelId?: string | null
   facebookAccessToken?: string | null
   paymentConfirmedMessage?: string | null
+  upsellMessage?: string | null
+  upsellButtonText?: string | null
+  upsellButtonValue?: number | null
+  pixRecoveryEnabled?: boolean
+  pixRecoveryMessage?: string | null
+  pixRecoveryDelayMinutes?: number
   paymentButtons: PaymentButton[]
   createdAt: string
   updatedAt: string
@@ -218,6 +224,12 @@ interface BotInput {
   facebookPixelId?: string | null
   facebookAccessToken?: string | null
   paymentConfirmedMessage?: string | null
+  upsellMessage?: string | null
+  upsellButtonText?: string | null
+  upsellButtonValue?: number
+  pixRecoveryEnabled?: boolean
+  pixRecoveryMessage?: string | null
+  pixRecoveryDelayMinutes?: number
   paymentButtons?: Array<{ text: string; value: number }>
   resendPaymentButtons?: Array<{ text: string; value: number }>
   resendButtonGroups?: Array<Array<{ text: string; value: number }>>
@@ -351,178 +363,3 @@ export function useToggleResend() {
   })
 }
 
-// Manual Bot API
-export interface ManualBot {
-  id: string
-  name: string
-  telegramToken: string
-  syncpayApiKey: string
-  syncpayApiSecret: string
-  startImage?: string | null
-  startCaption?: string | null
-  startButtonMessage?: string | null
-  paymentConfirmedMessage?: string | null
-  paymentButtons: PaymentButton[]
-  createdAt: string
-  updatedAt: string
-}
-
-export interface ManualBotBlockedLead {
-  id: string
-  botId: string
-  telegramChatId: string
-  telegramUsername?: string | null
-  firstName?: string | null
-  lastName?: string | null
-  blockedAt: string
-  createdAt: string
-  updatedAt: string
-}
-
-export function useManualBot() {
-  return useQuery({
-    queryKey: ["manualBot"],
-    queryFn: async () => {
-      const response = await fetchWithAuth(`/api/manual-bot`)
-      if (!response.ok) {
-        throw new Error("Erro ao buscar bot manual")
-      }
-      const data = await response.json()
-      return data.bot as ManualBot | null
-    },
-  })
-}
-
-export function useManualBotStats() {
-  return useQuery({
-    queryKey: ["manualBotStats"],
-    queryFn: async () => {
-      const response = await fetchWithAuth(`/api/manual-bot/stats`)
-      if (!response.ok) {
-        throw new Error("Erro ao buscar estatísticas do bot manual")
-      }
-      const data = await response.json()
-      return { totalLeads: data.totalLeads ?? 0 } as { totalLeads: number }
-    },
-  })
-}
-
-export function useManualBotBlockedLeads() {
-  return useQuery({
-    queryKey: ["manualBotBlockedLeads"],
-    queryFn: async () => {
-      const response = await fetchWithAuth(`/api/manual-bot/blocked`)
-      if (!response.ok) {
-        throw new Error("Erro ao buscar leads bloqueados")
-      }
-      const data = await response.json()
-      return data.blockedLeads as ManualBotBlockedLead[]
-    },
-  })
-}
-
-export function useCreateOrUpdateManualBot() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (botData: {
-      name: string
-      telegramToken: string
-      syncpayApiKey: string
-      syncpayApiSecret: string
-      startImage?: string | null
-      startCaption?: string | null
-      startButtonMessage?: string | null
-      paymentConfirmedMessage?: string | null
-      paymentButtons?: Array<{ text: string; value: number }>
-    }) => {
-      const response = await fetchWithAuth(`/api/manual-bot`, {
-        method: "POST",
-        body: JSON.stringify(botData),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao criar/atualizar bot manual")
-      }
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["manualBot"] })
-    },
-  })
-}
-
-export function useUpdateManualBotToken() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (telegramToken: string) => {
-      const response = await fetchWithAuth(`/api/manual-bot/token`, {
-        method: "PUT",
-        body: JSON.stringify({ telegramToken }),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao atualizar token")
-      }
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["manualBot"] })
-    },
-  })
-}
-
-export async function fetchManualBotSendStatus(jobId: string) {
-  const response = await fetchWithAuth(`/api/manual-bot/send/status/${jobId}`)
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || "Erro ao consultar status")
-  }
-  return response.json()
-}
-
-export function useSendManualBotMessages() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async () => {
-      const response = await fetchWithAuth(`/api/manual-bot/send`, {
-        method: "POST",
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao disparar mensagens")
-      }
-      const data = await response.json()
-      // 202 = processamento em background, retorna jobId
-      if (response.status === 202 && data.jobId) {
-        return { jobId: data.jobId, status: "processing" }
-      }
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["manualBotBlockedLeads"] })
-    },
-  })
-}
-
-export function useRemoveBlockedLead() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (chatId: string) => {
-      const response = await fetchWithAuth(`/api/manual-bot/blocked/${chatId}`, {
-        method: "DELETE",
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao remover lead bloqueado")
-      }
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["manualBotBlockedLeads"] })
-    },
-  })
-}

@@ -9,9 +9,9 @@ import { leadRoutes } from "./routes/leads";
 import { webhookRoutes } from "./routes/webhook";
 import { trackingRoutes } from "./routes/tracking";
 import { queueRoutes } from "./routes/queue";
-import { manualBotRoutes } from "./routes/manual-bot";
 import { BotManager } from "./services/bot-manager";
 import { restoreResends, resendWorker } from "./services/resend-queue";
+import { startPixRecoveryScheduler } from "./services/pix-recovery";
 
 const prisma = new PrismaClient();
 const botManager = BotManager.getInstance();
@@ -120,13 +120,13 @@ const app = new Elysia()
   .use(webhookRoutes)
   .use(trackingRoutes)
   .use(queueRoutes)
-  .use(manualBotRoutes)
   .get("/", () => ({ message: "Tele Bot API" }));
 
 const port = parseInt(process.env.PORT || "3000");
 app.listen(port, () => {
   console.log(`Elysia is running at http://0.0.0.0:${port}`);
   initializeBots();
+  startPixRecoveryScheduler();
 });
 
 export type App = typeof app;

@@ -283,29 +283,47 @@ export const webhookRoutes = new Elysia({ prefix: "/api/webhooks" })
           // Ignorar erro ao enviar para Facebook
         }
 
-        // Notificar o usuário no Telegram
+        // Notificar o usuário no Telegram + Upsell
         try {
           const bot = await prisma.bot.findUnique({
             where: { id: payment.botId },
           });
 
-          if (bot && (bot.isActive || bot.isManual)) {
+          if (bot && bot.isActive) {
             const { Bot } = await import("grammy");
             const telegramBot = new Bot(bot.telegramToken);
             
-            // Usar mensagem configurada ou mensagem padrão
+            // Mensagem de confirmação
             const message = bot.paymentConfirmedMessage 
               ? bot.paymentConfirmedMessage.replace(/\{amount\}/g, (payment.amount / 100).toFixed(2))
               : `✅ Pagamento confirmado! Obrigado pela compra de R$ ${(payment.amount / 100).toFixed(2)}.`;
             
-            // Normalizar quebras de linha
             const normalizedMessage = message.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
             
             await telegramBot.api.sendMessage(
               parseInt(payment.telegramChatId),
               normalizedMessage
             );
-            
+
+            // Upsell - oferta adicional após compra
+            if (bot.upsellMessage && bot.upsellMessage.trim()) {
+              const upsellText = bot.upsellMessage.replace(/\{amount\}/g, (payment.amount / 100).toFixed(2));
+              const normalizedUpsell = upsellText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+              if (bot.upsellButtonText && bot.upsellButtonText.trim() && bot.upsellButtonValue && bot.upsellButtonValue > 0) {
+                const price = (bot.upsellButtonValue / 100).toFixed(2).replace('.', ',');
+                const buttonText = `R$ ${price} - ${bot.upsellButtonText}`;
+                await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), normalizedUpsell, {
+                  reply_markup: {
+                    inline_keyboard: [[
+                      { text: buttonText, callback_data: `payment_${bot.upsellButtonValue}` }
+                    ]],
+                  },
+                });
+              } else {
+                await telegramBot.api.sendMessage(parseInt(payment.telegramChatId), normalizedUpsell);
+              }
+            }
           }
         } catch (telegramError: any) {
           // Ignorar erro ao enviar mensagem

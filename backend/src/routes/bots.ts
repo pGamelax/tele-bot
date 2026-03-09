@@ -392,6 +392,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId,
         facebookAccessToken,
         paymentConfirmedMessage,
+        upsellMessage,
+        upsellButtonText,
+        upsellButtonValue,
+        pixRecoveryEnabled,
+        pixRecoveryMessage,
+        pixRecoveryDelayMinutes,
       } = body as {
         name: string;
         telegramToken: string;
@@ -413,6 +419,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId?: string;
         facebookAccessToken?: string;
         paymentConfirmedMessage?: string;
+        upsellMessage?: string;
+        upsellButtonText?: string;
+        upsellButtonValue?: number;
+        pixRecoveryEnabled?: boolean;
+        pixRecoveryMessage?: string;
+        pixRecoveryDelayMinutes?: number;
       };
 
       // Validar campos obrigatórios
@@ -440,6 +452,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
           facebookPixelId: facebookPixelId || null,
           facebookAccessToken: facebookAccessToken || null,
           paymentConfirmedMessage: paymentConfirmedMessage || null,
+          upsellMessage: upsellMessage || null,
+          upsellButtonText: upsellButtonText || null,
+          upsellButtonValue: (upsellButtonValue && upsellButtonValue > 0) ? upsellButtonValue : null,
+          pixRecoveryEnabled: pixRecoveryEnabled ?? true,
+          pixRecoveryMessage: pixRecoveryMessage || null,
+          pixRecoveryDelayMinutes: pixRecoveryDelayMinutes ?? 10,
           paymentButtons: {
             create: [
               ...(paymentButtons || []).map((btn) => ({ ...btn, type: "start" })),
@@ -553,6 +571,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId,
         facebookAccessToken,
         paymentConfirmedMessage,
+        upsellMessage,
+        upsellButtonText,
+        upsellButtonValue,
+        pixRecoveryEnabled,
+        pixRecoveryMessage,
+        pixRecoveryDelayMinutes,
       } = body as {
         name?: string;
         telegramToken?: string;
@@ -575,6 +599,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
         facebookPixelId?: string;
         facebookAccessToken?: string;
         paymentConfirmedMessage?: string;
+        upsellMessage?: string;
+        upsellButtonText?: string;
+        upsellButtonValue?: number;
+        pixRecoveryEnabled?: boolean;
+        pixRecoveryMessage?: string;
+        pixRecoveryDelayMinutes?: number;
       };
 
       // Parar bot atual se estiver rodando
@@ -598,6 +628,12 @@ export const botRoutes = new Elysia({ prefix: "/api/bots" })
       if (facebookPixelId !== undefined) updateData.facebookPixelId = facebookPixelId || null;
       if (facebookAccessToken !== undefined) updateData.facebookAccessToken = facebookAccessToken || null;
       if (paymentConfirmedMessage !== undefined) updateData.paymentConfirmedMessage = paymentConfirmedMessage || null;
+      if (upsellMessage !== undefined) updateData.upsellMessage = (upsellMessage && upsellMessage.trim()) ? upsellMessage.trim() : null;
+      if (upsellButtonText !== undefined) updateData.upsellButtonText = (upsellButtonText && upsellButtonText.trim()) ? upsellButtonText.trim() : null;
+      if (upsellButtonValue !== undefined) updateData.upsellButtonValue = (upsellButtonValue && upsellButtonValue > 0) ? upsellButtonValue : null;
+      if (pixRecoveryEnabled !== undefined) updateData.pixRecoveryEnabled = pixRecoveryEnabled;
+      if (pixRecoveryMessage !== undefined) updateData.pixRecoveryMessage = (pixRecoveryMessage && pixRecoveryMessage.trim()) ? pixRecoveryMessage.trim() : null;
+      if (pixRecoveryDelayMinutes !== undefined) updateData.pixRecoveryDelayMinutes = pixRecoveryDelayMinutes;
 
       // Atualizar no banco
       const bot = await prisma.bot.update({
