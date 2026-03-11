@@ -2,20 +2,147 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { authClient } from "@/lib/auth-client"
 import { useCreateBot } from "@/lib/api-client"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { ArrowLeft, Plus, X, Save, Bot as BotIcon, MessageSquare, Clock, Settings, DollarSign, TrendingUp } from "lucide-react"
+import {
+  ArrowLeft, Plus, X, Save, Bot as BotIcon, MessageSquare, Clock,
+  Settings, DollarSign, TrendingUp, ChevronRight, ChevronLeft,
+  KeyRound, Image as ImageIcon, RefreshCw, Zap, Bell,
+} from "lucide-react"
 import Link from "next/link"
 import { ImageUpload } from "@/components/ui/image-upload"
 import { MultipleImageUpload } from "@/components/ui/multiple-image-upload"
 import { PriceInput } from "@/components/ui/price-input"
 
+type TabId = "basic" | "start" | "resend" | "upsell" | "advanced"
+
+const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
+  { id: "basic", label: "Básico", icon: BotIcon, description: "Credenciais e nome" },
+  { id: "start", label: "Boas-vindas", icon: MessageSquare, description: "Primeira mensagem" },
+  { id: "resend", label: "Remarketing", icon: RefreshCw, description: "Mensagens automáticas" },
+  { id: "upsell", label: "Upsell", icon: TrendingUp, description: "Oferta pós-compra" },
+  { id: "advanced", label: "Avançado", icon: Settings, description: "Integrações extras" },
+]
+
+function SectionHeader({ icon: Icon, title, description, color = "blue" }: {
+  icon: React.ElementType
+  title: string
+  description?: string
+  color?: string
+}) {
+  const colors: Record<string, string> = {
+    blue: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    green: "bg-green-500/10 text-green-500 border-green-500/20",
+    purple: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    orange: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+    pink: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+  }
+  return (
+    <div className="flex items-start gap-3 mb-5">
+      <div className={`p-2 rounded-lg border ${colors[color]}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <h3 className="font-semibold text-foreground text-sm">{title}</h3>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+    </div>
+  )
+}
+
+function FieldGroup({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-card border border-border rounded-xl p-4 space-y-4 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, hint, required, children }: {
+  label: string; hint?: string; required?: boolean; children: React.ReactNode
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
+        {label} {required && <span className="text-destructive">*</span>}
+      </label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground mt-1.5">{hint}</p>}
+    </div>
+  )
+}
+
+function inputCls() {
+  return "w-full px-3 py-2.5 border border-input bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors placeholder:text-muted-foreground/60"
+}
+
+function PaymentButtonEditor({
+  buttons, onAdd, onRemove, onUpdate, addLabel = "Adicionar Botão",
+}: {
+  buttons: Array<{ text: string; value: number }>
+  onAdd: () => void
+  onRemove: (i: number) => void
+  onUpdate: (i: number, field: string, value: string | number) => void
+  addLabel?: string
+}) {
+  return (
+    <div className="space-y-2">
+      {buttons.map((btn, index) => (
+        <div key={index} className="flex items-center gap-2 bg-background border border-border rounded-lg p-2.5">
+          <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-primary">{index + 1}</span>
+          </div>
+          <input
+            type="text"
+            placeholder="Texto do botão (ex: Comprar Agora)"
+            value={btn.text}
+            onChange={(e) => onUpdate(index, "text", e.target.value)}
+            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground/60"
+          />
+          <div className="shrink-0">
+            <PriceInput
+              value={btn.value}
+              onChange={(v) => onUpdate(index, "value", v)}
+              placeholder="R$ 0,00"
+              className="w-28 px-2 py-1.5 border border-input bg-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      {buttons.length > 0 && (
+        <div className="bg-muted/30 border border-dashed border-border rounded-lg p-2.5">
+          <p className="text-xs text-muted-foreground text-center mb-2 font-medium">Pré-visualização no Telegram</p>
+          <div className="flex flex-wrap gap-1 justify-center">
+            {buttons.map((btn, i) => (
+              <div key={i} className="bg-primary/10 border border-primary/20 text-primary text-xs px-3 py-1.5 rounded-full font-medium">
+                R$ {btn.value > 0 ? (btn.value / 100).toFixed(2).replace(".", ",") : "0,00"} — {btn.text || "..."}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+      >
+        <Plus className="h-4 w-4" />
+        {addLabel}
+      </button>
+    </div>
+  )
+}
+
 export default function NewBotPage() {
   const router = useRouter()
-  const { data: session } = authClient.useSession()
   const createBot = useCreateBot()
   const { toast } = useToast()
 
@@ -47,23 +174,12 @@ export default function NewBotPage() {
   const [resendImages, setResendImages] = useState<string[]>([])
   const [resendCaptions, setResendCaptions] = useState<string[]>([])
   const [paymentButtons, setPaymentButtons] = useState<Array<{ text: string; value: number }>>([])
-  const [resendPaymentButtons, setResendPaymentButtons] = useState<
-    Array<{ text: string; value: number }>
-  >([])
-  const [resendButtonGroups, setResendButtonGroups] = useState<
-    Array<Array<{ text: string; value: number }>>
-  >([])
-  const [activeTab, setActiveTab] = useState<"basic" | "start" | "resend" | "upsell" | "advanced">("basic")
-
-  useEffect(() => {
-    if (!session) {
-      router.push("/sign-in")
-    }
-  }, [session, router])
+  const [resendPaymentButtons, setResendPaymentButtons] = useState<Array<{ text: string; value: number }>>([])
+  const [resendButtonGroups, setResendButtonGroups] = useState<Array<Array<{ text: string; value: number }>>>([])
+  const [activeTab, setActiveTab] = useState<TabId>("basic")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     try {
       await createBot.mutateAsync({
         ...formData,
@@ -74,728 +190,423 @@ export default function NewBotPage() {
         resendPaymentButtons,
         resendButtonGroups,
       })
-      toast({
-        title: "Sucesso",
-        description: "Bot criado com sucesso",
-      })
+      toast({ title: "Bot criado com sucesso!" })
       router.push("/bots")
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao criar bot",
-        variant: "destructive",
-      })
+      toast({ title: "Erro ao criar bot", description: error.message, variant: "destructive" })
     }
   }
 
-  const addPaymentButton = () => {
-    setPaymentButtons([...paymentButtons, { text: "", value: 0 }])
-  }
+  const tabIndex = TABS.findIndex((t) => t.id === activeTab)
+  const goNext = () => tabIndex < TABS.length - 1 && setActiveTab(TABS[tabIndex + 1].id)
+  const goPrev = () => tabIndex > 0 && setActiveTab(TABS[tabIndex - 1].id)
 
-  const removePaymentButton = (index: number) => {
-    setPaymentButtons(paymentButtons.filter((_, i) => i !== index))
+  // Payment button helpers
+  const addPaymentButton = () => setPaymentButtons([...paymentButtons, { text: "", value: 0 }])
+  const removePaymentButton = (i: number) => setPaymentButtons(paymentButtons.filter((_, j) => j !== i))
+  const updatePaymentButton = (i: number, f: string, v: string | number) => {
+    const u = [...paymentButtons]; u[i] = { ...u[i], [f]: v }; setPaymentButtons(u)
   }
-
-  const updatePaymentButton = (index: number, field: string, value: string | number) => {
-    const updated = [...paymentButtons]
-    updated[index] = { ...updated[index], [field]: value }
-    setPaymentButtons(updated)
+  const addResendPaymentButton = () => setResendPaymentButtons([...resendPaymentButtons, { text: "", value: 0 }])
+  const removeResendPaymentButton = (i: number) => setResendPaymentButtons(resendPaymentButtons.filter((_, j) => j !== i))
+  const updateResendPaymentButton = (i: number, f: string, v: string | number) => {
+    const u = [...resendPaymentButtons]; u[i] = { ...u[i], [f]: v }; setResendPaymentButtons(u)
   }
-
-  const addResendPaymentButton = () => {
-    setResendPaymentButtons([...resendPaymentButtons, { text: "", value: 0 }])
+  const addResendCaption = () => setResendCaptions([...resendCaptions, ""])
+  const removeResendCaption = (i: number) => setResendCaptions(resendCaptions.filter((_, j) => j !== i))
+  const updateResendCaption = (i: number, v: string) => { const u = [...resendCaptions]; u[i] = v; setResendCaptions(u) }
+  const addResendButtonGroup = () => setResendButtonGroups([...resendButtonGroups, []])
+  const removeResendButtonGroup = (gi: number) => setResendButtonGroups(resendButtonGroups.filter((_, i) => i !== gi))
+  const addButtonToGroup = (gi: number) => { const u = [...resendButtonGroups]; u[gi] = [...u[gi], { text: "", value: 0 }]; setResendButtonGroups(u) }
+  const removeButtonFromGroup = (gi: number, bi: number) => { const u = [...resendButtonGroups]; u[gi] = u[gi].filter((_, i) => i !== bi); setResendButtonGroups(u) }
+  const updateButtonInGroup = (gi: number, bi: number, f: string, v: string | number) => {
+    const u = [...resendButtonGroups]; u[gi][bi] = { ...u[gi][bi], [f]: v }; setResendButtonGroups(u)
   }
-
-  const removeResendPaymentButton = (index: number) => {
-    setResendPaymentButtons(resendPaymentButtons.filter((_, i) => i !== index))
-  }
-
-  const updateResendPaymentButton = (index: number, field: string, value: string | number) => {
-    const updated = [...resendPaymentButtons]
-    updated[index] = { ...updated[index], [field]: value }
-    setResendPaymentButtons(updated)
-  }
-
-  // Funções para gerenciar múltiplos textos
-  const addResendCaption = () => {
-    setResendCaptions([...resendCaptions, ""])
-  }
-
-  const removeResendCaption = (index: number) => {
-    setResendCaptions(resendCaptions.filter((_, i) => i !== index))
-  }
-
-  const updateResendCaption = (index: number, value: string) => {
-    const updated = [...resendCaptions]
-    updated[index] = value
-    setResendCaptions(updated)
-  }
-
-  // Funções para gerenciar grupos de botões
-  const addResendButtonGroup = () => {
-    setResendButtonGroups([...resendButtonGroups, []])
-  }
-
-  const removeResendButtonGroup = (groupIndex: number) => {
-    setResendButtonGroups(resendButtonGroups.filter((_, i) => i !== groupIndex))
-  }
-
-  const addButtonToGroup = (groupIndex: number) => {
-    const updated = [...resendButtonGroups]
-    updated[groupIndex] = [...updated[groupIndex], { text: "", value: 0 }]
-    setResendButtonGroups(updated)
-  }
-
-  const removeButtonFromGroup = (groupIndex: number, buttonIndex: number) => {
-    const updated = [...resendButtonGroups]
-    updated[groupIndex] = updated[groupIndex].filter((_, i) => i !== buttonIndex)
-    setResendButtonGroups(updated)
-  }
-
-  const updateButtonInGroup = (groupIndex: number, buttonIndex: number, field: string, value: string | number) => {
-    const updated = [...resendButtonGroups]
-    updated[groupIndex][buttonIndex] = { ...updated[groupIndex][buttonIndex], [field]: value }
-    setResendButtonGroups(updated)
-  }
-
-  const tabs = [
-    { id: "basic", label: "Básico", icon: BotIcon },
-    { id: "start", label: "Mensagem Inicial", icon: MessageSquare },
-    { id: "resend", label: "Remarketing", icon: Clock },
-    { id: "upsell", label: "Upsell", icon: TrendingUp },
-    { id: "advanced", label: "Avançado", icon: Settings },
-  ]
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="w-full border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/bots" className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Voltar</span>
-              </Link>
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Novo Bot</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">Configure seu bot do Telegram</p>
-              </div>
-            </div>
+    <div className="flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="px-6 h-14 flex items-center gap-4">
+          <Link href="/bots" className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-semibold text-foreground truncate">
+              {formData.name ? formData.name : "Novo Bot"}
+            </h1>
+            <p className="text-xs text-muted-foreground">Configure seu bot do Telegram</p>
           </div>
+          <Button type="submit" form="bot-form" disabled={createBot.isPending} size="sm" className="shrink-0 gap-2">
+            <Save className="h-4 w-4" />
+            <span className="hidden sm:inline">{createBot.isPending ? "Criando..." : "Criar Bot"}</span>
+          </Button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6">
-        {/* Tabs Navigation */}
-        <div className="mb-4 sm:mb-6 border-b border-border">
-          <nav className="flex gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8">
-            {tabs.map((tab) => {
+      {/* Step Navigation */}
+      <div className="border-b border-border bg-card/30 sticky top-14 z-10">
+        <div className="px-6">
+          <nav className="flex overflow-x-auto scrollbar-hide">
+            {TABS.map((tab, i) => {
               const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              const isDone = i < tabIndex
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 ${
-                    activeTab === tab.id
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 shrink-0 transition-all -mb-px ${
+                    isActive
                       ? "border-primary text-primary"
+                      : isDone
+                      ? "border-transparent text-muted-foreground/70 hover:text-foreground hover:border-border"
                       : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="whitespace-nowrap">{tab.label}</span>
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    isActive ? "bg-primary text-primary-foreground" : isDone ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {i + 1}
+                  </span>
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="whitespace-nowrap hidden sm:inline">{tab.label}</span>
                 </button>
               )
             })}
           </nav>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Tab: Básico */}
+      <main className="px-6 py-6 max-w-3xl">
+        <form id="bot-form" onSubmit={handleSubmit}>
+
+          {/* ─── BÁSICO ─── */}
           {activeTab === "basic" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BotIcon className="h-5 w-5" />
-                  Informações Básicas
-                </CardTitle>
-                <CardDescription>Configure as informações principais do bot</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Nome do Bot <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Meu Bot"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Token do Telegram <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.telegramToken}
-                      onChange={(e) => setFormData({ ...formData, telegramToken: e.target.value })}
-                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors font-mono text-sm"
-                    />
-                  </div>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Informações Básicas</h2>
+                <p className="text-sm text-muted-foreground mt-1">Configure o nome e as credenciais do seu bot</p>
+              </div>
+
+              <FieldGroup>
+                <SectionHeader icon={BotIcon} title="Identidade do Bot" description="Como este bot será identificado no painel" color="blue" />
+                <Field label="Nome do Bot" required>
+                  <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Bot Vendas - Produto X" className={inputCls()} />
+                </Field>
+                <Field label="Token do Telegram" required hint="Obtido no @BotFather. Mantenha em segredo!">
+                  <input type="text" required value={formData.telegramToken} onChange={(e) => setFormData({ ...formData, telegramToken: e.target.value })}
+                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" className={`${inputCls()} font-mono text-sm`} />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={KeyRound} title="Credenciais de Pagamento" description="Chaves da API SyncPay para processar PIX" color="green" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="API Key" required>
+                    <input type="text" required value={formData.syncpayApiKey} onChange={(e) => setFormData({ ...formData, syncpayApiKey: e.target.value })}
+                      placeholder="Sua API Key" className={inputCls()} />
+                  </Field>
+                  <Field label="API Secret" required>
+                    <input type="text" required value={formData.syncpayApiSecret} onChange={(e) => setFormData({ ...formData, syncpayApiSecret: e.target.value })}
+                      placeholder="Sua API Secret" className={inputCls()} />
+                  </Field>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      SyncPay API Key <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.syncpayApiKey}
-                      onChange={(e) => setFormData({ ...formData, syncpayApiKey: e.target.value })}
-                      placeholder="Sua API Key"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      SyncPay API Secret <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.syncpayApiSecret}
-                      onChange={(e) => setFormData({ ...formData, syncpayApiSecret: e.target.value })}
-                      placeholder="Sua API Secret"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </FieldGroup>
+            </div>
           )}
 
-          {/* Tab: Mensagem Inicial */}
+          {/* ─── MENSAGEM INICIAL ─── */}
           {activeTab === "start" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Mensagem Inicial
-                </CardTitle>
-                <CardDescription>Configure a mensagem enviada quando o usuário inicia o bot</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ImageUpload
-                  label="Imagem/Video de Início"
-                  value={formData.startImage}
-                  onChange={(url) => setFormData({ ...formData, startImage: url })}
-                  maxSizeMB={50}
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Mensagem de Boas-vindas</h2>
+                <p className="text-sm text-muted-foreground mt-1">Enviada quando o usuário digita /start no bot</p>
+              </div>
+
+              <FieldGroup>
+                <SectionHeader icon={ImageIcon} title="Mídia" description="Imagem ou vídeo que aparece com a mensagem" color="purple" />
+                <ImageUpload label="Imagem ou Vídeo" value={formData.startImage} onChange={(url) => setFormData({ ...formData, startImage: url })} maxSizeMB={50} />
+                <Field label="URL da Mídia (alternativo)" hint="Ou cole diretamente a URL da imagem/vídeo">
+                  <input type="text" value={formData.startImage} onChange={(e) => setFormData({ ...formData, startImage: e.target.value })}
+                    placeholder="https://..." className={inputCls()} />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={MessageSquare} title="Texto" description="Mensagem exibida junto com a mídia" color="blue" />
+                <Field label="Legenda da Mensagem">
+                  <textarea value={formData.startCaption} onChange={(e) => setFormData({ ...formData, startCaption: e.target.value })}
+                    rows={4} placeholder="Digite a mensagem de boas-vindas..." className={`${inputCls()} resize-none`} />
+                </Field>
+                <Field label="Texto dos Botões (opcional)" hint="Se preenchido, os botões serão enviados em uma mensagem separada. Deixe vazio para exibir os botões na legenda.">
+                  <textarea value={formData.startButtonMessage} onChange={(e) => setFormData({ ...formData, startButtonMessage: e.target.value })}
+                    rows={2} placeholder="Ex: Escolha uma opção abaixo 👇" className={`${inputCls()} resize-none`} />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={DollarSign} title="Botões de Pagamento" description="Opções de compra exibidas para o usuário" color="green" />
+                <PaymentButtonEditor
+                  buttons={paymentButtons}
+                  onAdd={addPaymentButton}
+                  onRemove={removePaymentButton}
+                  onUpdate={updatePaymentButton}
+                  addLabel="Adicionar opção de pagamento"
                 />
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    URL da Imagem/Video (ou cole manualmente)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.startImage}
-                    onChange={(e) => setFormData({ ...formData, startImage: e.target.value })}
-                    placeholder="http://..."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Legenda</label>
-                  <textarea
-                    value={formData.startCaption}
-                    onChange={(e) => setFormData({ ...formData, startCaption: e.target.value })}
-                    rows={4}
-                    placeholder="Digite a mensagem que será exibida junto com a imagem..."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    Mensagem para os Botões (opcional)
-                  </label>
-                  <textarea
-                    value={formData.startButtonMessage}
-                    onChange={(e) => setFormData({ ...formData, startButtonMessage: e.target.value })}
-                    rows={3}
-                    placeholder="Se preenchido, os botões serão enviados em uma mensagem separada com este texto. Se vazio, os botões aparecerão na legenda da imagem."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Deixe vazio para usar os botões na legenda da imagem/vídeo
-                  </p>
-                </div>
-                <div className="border-t border-border pt-4">
-                  <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Botões de Pagamento Inicial
-                  </label>
-                  <div className="space-y-2">
-                    {paymentButtons.map((btn, index) => (
-                      <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                        <input
-                          type="text"
-                          placeholder="Texto do botão (ex: Comprar Agora)"
-                          value={btn.text}
-                          onChange={(e) => updatePaymentButton(index, "text", e.target.value)}
-                          className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                        />
-                        <div className="flex gap-2">
-                          <PriceInput
-                            value={btn.value}
-                            onChange={(value) => updatePaymentButton(index, "value", value)}
-                            placeholder="R$ 0,00"
-                            className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => removePaymentButton(index)}
-                            className="shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    <Button type="button" variant="outline" onClick={addPaymentButton} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Botão de Pagamento
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </FieldGroup>
+            </div>
           )}
 
-          {/* Tab: Remarketing */}
+          {/* ─── REMARKETING ─── */}
           {activeTab === "resend" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Mensagem de Remarketing
-                </CardTitle>
-                <CardDescription>
-                  Configure as mensagens enviadas quando o pagamento não é realizado. As imagens serão rotacionadas automaticamente.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                  <p className="text-sm text-foreground font-medium mb-1">💡 Como funciona a rotação</p>
-                  <p className="text-xs text-muted-foreground">
-                    Você pode adicionar múltiplas imagens, textos e grupos de botões. O sistema rotacionará automaticamente:
-                    imagem 1, texto 1, botões 1 no primeiro reenvio; imagem 2, texto 2, botões 2 no segundo; e assim por diante.
-                    Se houver quantidades diferentes, o sistema usará o índice módulo para rotacionar independentemente.
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Mensagens de Remarketing</h2>
+                <p className="text-sm text-muted-foreground mt-1">Mensagens automáticas para usuários que não compraram</p>
+              </div>
+
+              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                <Zap className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Como funciona a rotação</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Adicione múltiplas imagens, textos e grupos de botões. O sistema alternará automaticamente:
+                    imagem 1 + texto 1 + botões 1 no 1º reenvio, imagem 2 + texto 2 + botões 2 no 2º, e assim por diante.
                   </p>
                 </div>
+              </div>
 
-                <MultipleImageUpload
-                  images={resendImages}
-                  onChange={setResendImages}
-                  label="Imagens/Vídeos de Remarketing"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FieldGroup>
+                  <Field label="Primeiro Reenvio" hint="Minutos após o usuário não pagar">
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="1" value={formData.resendFirstDelay}
+                        onChange={(e) => setFormData({ ...formData, resendFirstDelay: parseInt(e.target.value) || 20 })}
+                        className={`${inputCls()} w-24`} />
+                      <span className="text-sm text-muted-foreground">minutos</span>
+                    </div>
+                  </Field>
+                </FieldGroup>
+                <FieldGroup>
+                  <Field label="Intervalo entre Reenvios" hint="Tempo entre cada reenvio subsequente">
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="1" value={formData.resendInterval}
+                        onChange={(e) => setFormData({ ...formData, resendInterval: parseInt(e.target.value) || 10 })}
+                        className={`${inputCls()} w-24`} />
+                      <span className="text-sm text-muted-foreground">minutos</span>
+                    </div>
+                  </Field>
+                </FieldGroup>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Textos de Remarketing (Rotação)
-                  </label>
-                  <div className="space-y-3">
-                    {resendCaptions.map((caption, index) => (
-                      <div key={index} className="flex gap-2 items-start">
-                        <div className="flex-1">
-                          <textarea
-                            value={caption}
-                            onChange={(e) => updateResendCaption(index, e.target.value)}
-                            rows={3}
-                            placeholder={`Texto ${index + 1} - Digite a mensagem que será exibida...`}
-                            className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeResendCaption(index)}
-                          className="shrink-0 mt-0.5"
-                        >
+              <FieldGroup>
+                <SectionHeader icon={ImageIcon} title="Imagens / Vídeos" description="Serão rotacionados a cada reenvio" color="purple" />
+                <MultipleImageUpload images={resendImages} onChange={setResendImages} label="" />
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={MessageSquare} title="Textos de Remarketing" description="Serão rotacionados a cada reenvio" color="blue" />
+                <div className="space-y-3">
+                  {resendCaptions.map((caption, i) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-2.5">{i + 1}</span>
+                      <textarea value={caption} onChange={(e) => updateResendCaption(i, e.target.value)}
+                        rows={3} placeholder={`Texto ${i + 1}...`}
+                        className={`${inputCls()} resize-none flex-1`} />
+                      <button type="button" onClick={() => removeResendCaption(i)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors mt-1.5 shrink-0">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addResendCaption}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
+                    <Plus className="h-4 w-4" /> Adicionar Texto
+                  </button>
+                </div>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={DollarSign} title="Grupos de Botões" description="Grupos rotacionados a cada reenvio" color="green" />
+                <div className="space-y-4">
+                  {resendButtonGroups.map((group, gi) => (
+                    <div key={gi} className="border border-border rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border">
+                        <span className="text-sm font-semibold text-foreground">Grupo {gi + 1}</span>
+                        <button type="button" onClick={() => removeResendButtonGroup(gi)}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors">
                           <X className="h-4 w-4" />
-                        </Button>
+                        </button>
                       </div>
-                    ))}
-                    <Button type="button" variant="outline" onClick={addResendCaption} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Texto
-                    </Button>
-                  </div>
-                  {resendCaptions.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Se não adicionar textos, será usado o campo "Legenda para Reenvios" (compatibilidade).
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Primeiro Reenvio (minutos)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.resendFirstDelay}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 20
-                        setFormData({ ...formData, resendFirstDelay: value })
-                      }}
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Tempo até o primeiro reenvio</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Intervalo entre Reenvios (minutos)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.resendInterval}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 10
-                        setFormData({ ...formData, resendInterval: value })
-                      }}
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Tempo entre cada reenvio subsequente</p>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4">
-                  <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Grupos de Botões de Pagamento (Rotação)
-                  </label>
-                  <div className="space-y-4">
-                    {resendButtonGroups.map((group, groupIndex) => (
-                      <div key={groupIndex} className="border border-border rounded-lg p-4 bg-card/50">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-medium text-foreground">Grupo {groupIndex + 1}</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => removeResendButtonGroup(groupIndex)}
-                            className="shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="space-y-2">
-                          {group.map((btn, buttonIndex) => (
-                            <div key={buttonIndex} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                              <input
-                                type="text"
-                                placeholder="Texto do botão (ex: Comprar Agora)"
-                                value={btn.text}
-                                onChange={(e) => updateButtonInGroup(groupIndex, buttonIndex, "text", e.target.value)}
-                                className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                              />
-                              <div className="flex gap-2">
-                                <PriceInput
-                                  value={btn.value}
-                                  onChange={(value) => updateButtonInGroup(groupIndex, buttonIndex, "value", value)}
-                                  placeholder="R$ 0,00"
-                                  className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => removeButtonFromGroup(groupIndex, buttonIndex)}
-                                  className="shrink-0"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => addButtonToGroup(groupIndex)}
-                            className="w-full"
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Adicionar Botão ao Grupo
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    <Button type="button" variant="outline" onClick={addResendButtonGroup} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Grupo de Botões
-                    </Button>
-                  </div>
-                  <div className="mt-4 border-t border-border pt-4">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Mensagem para os Botões de Remarketing (opcional)
-                    </label>
-                    <textarea
-                      value={formData.resendButtonMessage}
-                      onChange={(e) => setFormData({ ...formData, resendButtonMessage: e.target.value })}
-                      rows={3}
-                      placeholder="Se preenchido, os botões serão enviados em uma mensagem separada com este texto. Se vazio, os botões aparecerão na legenda da imagem."
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Deixe vazio para usar os botões na legenda da imagem/vídeo
-                    </p>
-                  </div>
-                  {resendButtonGroups.length === 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                      <label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        Botões de Pagamento de Reenvio (Compatibilidade)
-                      </label>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        Se não adicionar grupos de botões, será usado este campo (compatibilidade).
-                      </p>
-                      <div className="space-y-2">
-                        {resendPaymentButtons.map((btn, index) => (
-                          <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                            <input
-                              type="text"
-                              placeholder="Texto do botão (ex: Comprar Agora)"
-                              value={btn.text}
-                              onChange={(e) => updateResendPaymentButton(index, "text", e.target.value)}
-                              className="flex-1 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                            />
-                            <div className="flex gap-2">
-                              <PriceInput
-                                value={btn.value}
-                                onChange={(value) => updateResendPaymentButton(index, "value", value)}
-                                placeholder="R$ 0,00"
-                                className="flex-1 sm:w-32 px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                onClick={() => removeResendPaymentButton(index)}
-                                className="shrink-0"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                        <Button type="button" variant="outline" onClick={addResendPaymentButton} className="w-full">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Adicionar Botão de Pagamento
-                        </Button>
+                      <div className="p-3">
+                        <PaymentButtonEditor
+                          buttons={group}
+                          onAdd={() => addButtonToGroup(gi)}
+                          onRemove={(bi) => removeButtonFromGroup(gi, bi)}
+                          onUpdate={(bi, f, v) => updateButtonInGroup(gi, bi, f, v)}
+                          addLabel="Adicionar botão ao grupo"
+                        />
                       </div>
                     </div>
-                  )}
+                  ))}
+                  <button type="button" onClick={addResendButtonGroup}
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
+                    <Plus className="h-4 w-4" /> Adicionar Grupo de Botões
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
+                {resendButtonGroups.length === 0 && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Sem grupos de rotação? Use botões únicos para todos os reenvios:
+                    </p>
+                    <PaymentButtonEditor
+                      buttons={resendPaymentButtons}
+                      onAdd={addResendPaymentButton}
+                      onRemove={removeResendPaymentButton}
+                      onUpdate={updateResendPaymentButton}
+                      addLabel="Adicionar botão de reenvio"
+                    />
+                  </div>
+                )}
+                <Field label="Texto dos Botões de Remarketing (opcional)" hint="Deixe vazio para usar os botões na legenda da imagem">
+                  <textarea value={formData.resendButtonMessage} onChange={(e) => setFormData({ ...formData, resendButtonMessage: e.target.value })}
+                    rows={2} placeholder="Ex: Aproveite! Acesso por tempo limitado 🔥"
+                    className={`${inputCls()} resize-none`} />
+                </Field>
+              </FieldGroup>
+            </div>
           )}
 
-          {/* Tab: Upsell */}
+          {/* ─── UPSELL ─── */}
           {activeTab === "upsell" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Upsell - Oferta após compra
-                </CardTitle>
-                <CardDescription>
-                  Mensagem, imagem/vídeo e botão opcional enviados após a confirmação do pagamento para oferecer um produto adicional.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ImageUpload
-                  label="Imagem/Video do Upsell"
-                  value={formData.upsellImage}
-                  onChange={(url) => setFormData({ ...formData, upsellImage: url })}
-                  maxSizeMB={50}
-                />
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    URL da Imagem/Video (ou cole manualmente)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.upsellImage}
-                    onChange={(e) => setFormData({ ...formData, upsellImage: e.target.value })}
-                    placeholder="http://..."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                  />
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Upsell — Oferta Pós-compra</h2>
+                <p className="text-sm text-muted-foreground mt-1">Mensagem enviada automaticamente após a confirmação do pagamento</p>
+              </div>
+
+              <FieldGroup>
+                <SectionHeader icon={ImageIcon} title="Mídia do Upsell" color="pink" />
+                <ImageUpload label="Imagem ou Vídeo" value={formData.upsellImage} onChange={(url) => setFormData({ ...formData, upsellImage: url })} maxSizeMB={50} />
+                <Field label="URL da Mídia (alternativo)">
+                  <input type="text" value={formData.upsellImage} onChange={(e) => setFormData({ ...formData, upsellImage: e.target.value })}
+                    placeholder="https://..." className={inputCls()} />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={MessageSquare} title="Mensagem e Botão" color="orange" />
+                <Field label="Mensagem de Upsell" hint="Use {amount} para mostrar o valor da compra anterior">
+                  <textarea value={formData.upsellMessage} onChange={(e) => setFormData({ ...formData, upsellMessage: e.target.value })}
+                    rows={4} placeholder="Ex: 🎁 Aproveite! Adicione o bônus exclusivo por apenas R$ 29,90!"
+                    className={`${inputCls()} resize-none`} />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Texto do Botão (opcional)">
+                    <input type="text" value={formData.upsellButtonText} onChange={(e) => setFormData({ ...formData, upsellButtonText: e.target.value })}
+                      placeholder="Quero aproveitar!" className={inputCls()} />
+                  </Field>
+                  <Field label="Valor do Upsell" hint="Deixe zerado se não houver botão de pagamento">
+                    <PriceInput value={formData.upsellButtonValue} onChange={(v) => setFormData({ ...formData, upsellButtonValue: v })}
+                      className={inputCls()} />
+                  </Field>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    Mensagem de Upsell
-                  </label>
-                  <textarea
-                    value={formData.upsellMessage}
-                    onChange={(e) => setFormData({ ...formData, upsellMessage: e.target.value })}
-                    rows={3}
-                    placeholder="Ex: 🎁 Aproveite! Adicione o bônus exclusivo por apenas R$ 29,90!"
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Use {"{amount}"} para o valor da compra anterior
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Texto do Botão (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.upsellButtonText}
-                      onChange={(e) => setFormData({ ...formData, upsellButtonText: e.target.value })}
-                      placeholder="Quero aproveitar!"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Valor do Upsell (R$)
-                    </label>
-                    <PriceInput
-                      value={formData.upsellButtonValue}
-                      onChange={(v) => setFormData({ ...formData, upsellButtonValue: v })}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Preencha para adicionar botão de pagamento</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </FieldGroup>
+            </div>
           )}
 
-          {/* Tab: Avançado */}
+          {/* ─── AVANÇADO ─── */}
           {activeTab === "advanced" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Configurações Avançadas
-                </CardTitle>
-                <CardDescription>Configurações opcionais para integração e personalização</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Facebook Pixel ID
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.facebookPixelId}
-                      onChange={(e) => setFormData({ ...formData, facebookPixelId: e.target.value })}
-                      placeholder="123456789012345"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Para rastreamento de conversões</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Facebook Access Token
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.facebookAccessToken}
-                      onChange={(e) =>
-                        setFormData({ ...formData, facebookAccessToken: e.target.value })
-                      }
-                      placeholder="Seu access token"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Para Conversions API</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    Mensagem após Confirmação de Pagamento
-                  </label>
-                  <textarea
-                    value={formData.paymentConfirmedMessage}
-                    onChange={(e) =>
-                      setFormData({ ...formData, paymentConfirmedMessage: e.target.value })
-                    }
-                    rows={4}
-                    placeholder="Use {amount} para o valor. Ex: ✅ Obrigado! Sua compra de R$ {amount} foi confirmada."
-                    className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                  />
-                </div>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Configurações Avançadas</h2>
+                <p className="text-sm text-muted-foreground mt-1">Integrações e personalizações opcionais</p>
+              </div>
 
-                {/* Recuperação de PIX */}
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <h4 className="font-medium text-foreground">Recuperação de PIX</h4>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="pixRecoveryEnabled"
-                      checked={formData.pixRecoveryEnabled}
-                      onChange={(e) => setFormData({ ...formData, pixRecoveryEnabled: e.target.checked })}
-                      className="rounded border-input"
-                    />
-                    <label htmlFor="pixRecoveryEnabled" className="text-sm font-medium">Ativar lembrete para quem não pagou</label>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Minutos para enviar lembrete</label>
-                    <input
-                      type="number"
-                      min={5}
-                      max={60}
-                      value={formData.pixRecoveryDelayMinutes}
-                      onChange={(e) => setFormData({ ...formData, pixRecoveryDelayMinutes: parseInt(e.target.value) || 10 })}
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 max-w-[120px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Mensagem de lembrete</label>
-                    <textarea
-                      value={formData.pixRecoveryMessage}
-                      onChange={(e) => setFormData({ ...formData, pixRecoveryMessage: e.target.value })}
-                      rows={3}
-                      placeholder="⏰ Seu PIX de R$ {amount} ainda está válido. Código: {pixCode}"
-                      className="w-full px-3 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50 transition-colors resize-none"
-                    />
-                  </div>
+              <FieldGroup>
+                <SectionHeader icon={MessageSquare} title="Mensagem de Confirmação" description="Enviada após o pagamento ser confirmado" color="blue" />
+                <Field label="Mensagem" hint="Use {amount} para o valor pago. Ex: ✅ Obrigado! Sua compra de R$ {amount} foi confirmada.">
+                  <textarea value={formData.paymentConfirmedMessage} onChange={(e) => setFormData({ ...formData, paymentConfirmedMessage: e.target.value })}
+                    rows={4} placeholder="✅ Pagamento confirmado! Obrigado pela compra."
+                    className={`${inputCls()} resize-none`} />
+                </Field>
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={Bell} title="Recuperação de PIX" description="Lembrete automático para quem gerou PIX mas não pagou" color="orange" />
+                <div className="flex items-center gap-3 p-3 bg-background rounded-lg border border-border">
+                  <input type="checkbox" id="pixRecoveryEnabled" checked={formData.pixRecoveryEnabled}
+                    onChange={(e) => setFormData({ ...formData, pixRecoveryEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-input accent-primary" />
+                  <label htmlFor="pixRecoveryEnabled" className="text-sm font-medium cursor-pointer select-none">
+                    Ativar recuperação de PIX
+                  </label>
                 </div>
-              </CardContent>
-            </Card>
+                {formData.pixRecoveryEnabled && (
+                  <>
+                    <Field label="Enviar lembrete após" hint="Minutos após a geração do PIX sem pagamento">
+                      <div className="flex items-center gap-2">
+                        <input type="number" min={5} max={60} value={formData.pixRecoveryDelayMinutes}
+                          onChange={(e) => setFormData({ ...formData, pixRecoveryDelayMinutes: parseInt(e.target.value) || 10 })}
+                          className={`${inputCls()} w-24`} />
+                        <span className="text-sm text-muted-foreground">minutos</span>
+                      </div>
+                    </Field>
+                    <Field label="Mensagem do Lembrete" hint="Use {amount} e {pixCode} para personalizar">
+                      <textarea value={formData.pixRecoveryMessage} onChange={(e) => setFormData({ ...formData, pixRecoveryMessage: e.target.value })}
+                        rows={3} placeholder="⏰ Seu PIX de R$ {amount} ainda está válido! Código: {pixCode}"
+                        className={`${inputCls()} resize-none`} />
+                    </Field>
+                  </>
+                )}
+              </FieldGroup>
+
+              <FieldGroup>
+                <SectionHeader icon={Settings} title="Facebook Conversions API" description="Rastreamento avançado de conversões" color="blue" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Pixel ID" hint="Para rastreamento de eventos">
+                    <input type="text" value={formData.facebookPixelId} onChange={(e) => setFormData({ ...formData, facebookPixelId: e.target.value })}
+                      placeholder="123456789012345" className={inputCls()} />
+                  </Field>
+                  <Field label="Access Token" hint="Para Conversions API (server-side)">
+                    <input type="text" value={formData.facebookAccessToken} onChange={(e) => setFormData({ ...formData, facebookAccessToken: e.target.value })}
+                      placeholder="Seu access token" className={inputCls()} />
+                  </Field>
+                </div>
+              </FieldGroup>
+            </div>
           )}
 
-          {/* Botões de ação fixos */}
-          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t border-border p-3 sm:p-4 -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-end gap-2 sm:gap-4">
-              <Link href="/bots" className="w-full sm:w-auto">
-                <Button type="button" variant="outline" className="w-full sm:w-auto">
+          {/* ─── Bottom Navigation ─── */}
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t border-border mt-8 -mx-6 px-6 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <Link href="/bots">
+                <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
                   Cancelar
                 </Button>
               </Link>
-              <Button type="submit" disabled={createBot.isPending} className="w-full sm:w-auto min-w-[140px]">
-                <Save className="h-4 w-4 mr-2" />
-                {createBot.isPending ? "Criando..." : "Criar Bot"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {tabIndex > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={goPrev} className="gap-1.5">
+                    <ChevronLeft className="h-4 w-4" /> Anterior
+                  </Button>
+                )}
+                {tabIndex < TABS.length - 1 ? (
+                  <Button type="button" size="sm" onClick={goNext} className="gap-1.5">
+                    Próximo <ChevronRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={createBot.isPending} size="sm" className="gap-1.5 min-w-[120px]">
+                    <Save className="h-4 w-4" />
+                    {createBot.isPending ? "Criando..." : "Criar Bot"}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
+
         </form>
       </main>
     </div>

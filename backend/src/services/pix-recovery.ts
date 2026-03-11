@@ -31,7 +31,7 @@ export function startPixRecoveryScheduler() {
         const bot = payment.bot as any;
         if (!bot?.pixRecoveryEnabled) continue;
 
-        const delayMinutes = bot.pixRecoveryDelayMinutes ?? RECOVERY_DELAY_MINUTES;
+        const delayMinutes = bot.pixRecoveryDelayMinutes || RECOVERY_DELAY_MINUTES;
         const recoveryTime = new Date(payment.createdAt.getTime() + delayMinutes * 60 * 1000);
         if (now >= recoveryTime) {
           try {

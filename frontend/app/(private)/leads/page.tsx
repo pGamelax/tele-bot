@@ -1,841 +1,491 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { authClient } from "@/lib/auth-client"
-import { useLeads, useBots, usePayments, useUpdateLead, useDeleteLead, useToggleResend, Lead, Payment } from "@/lib/api-client"
+import { useState, useMemo } from "react"
+import { useLeads, useBots, usePayments, useUpdateLead, useDeleteLead, useToggleResend } from "@/lib/api-client"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Loading } from "@/components/ui/loading"
-import { 
-  Users, 
-  Filter, 
-  X, 
-  Check, 
-  Clock, 
-  Pause, 
-  Play, 
-  MoreVertical, 
-  Edit, 
-  Trash2,
-  Search,
-  UserPlus,
-  Ban,
-  RefreshCw,
-  Calendar,
-  Bot,
-  Network
+import {
+  Users, Check, Clock, Pause, Play, MoreVertical, Trash2,
+  Search, UserPlus, Ban, RefreshCw, Bot, Network,
 } from "lucide-react"
 
 type PeriodFilter = "today" | "yesterday" | "week" | "month" | "all"
 
+const PERIODS = [
+  { id: "today",     label: "Hoje" },
+  { id: "yesterday", label: "Ontem" },
+  { id: "week",      label: "Semana" },
+  { id: "month",     label: "Mês" },
+  { id: "all",       label: "Tudo" },
+] as const
+
+const fmtDateShort = (s: string) =>
+  new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+
+const fmtCurrency = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100)
+
+function getPeriodDates(period: PeriodFilter) {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  switch (period) {
+    case "today":     return { start: new Date(today), end: new Date(today.getTime() + 86400000 - 1) }
+    case "yesterday": { const y = new Date(today.getTime() - 86400000); return { start: y, end: new Date(y.getTime() + 86400000 - 1) } }
+    case "week":      { const w = new Date(today); w.setDate(today.getDate() - today.getDay()); return { start: w, end: now } }
+    case "month":     return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: now }
+    default:          return { start: null, end: null }
+  }
+}
+
 export default function LeadsPage() {
-  const router = useRouter()
-  const { data: session } = authClient.useSession()
   const { data: bots } = useBots()
   const { data: payments = [] } = usePayments()
-  const [selectedBotId, setSelectedBotId] = useState<string>("")
-  const [selectedFlow, setSelectedFlow] = useState<string>("all")
-  const [selectedStatus, setSelectedStatus] = useState<string>("all")
-  const [selectedStart, setSelectedStart] = useState<string>("all")
-  const [searchQuery, setSearchQuery] = useState<string>("")
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all")
   const { data: allLeads, isLoading } = useLeads()
-  const updateLead = useUpdateLead()
-  const deleteLead = useDeleteLead()
-  const toggleResend = useToggleResend()
-  const { toast } = useToast()
+  const updateLead    = useUpdateLead()
+  const deleteLead    = useDeleteLead()
+  const toggleResend  = useToggleResend()
+  const { toast }     = useToast()
 
-  useEffect(() => {
-    if (!session) {
-      router.push("/sign-in")
-    }
-  }, [session, router])
-
-  const getPeriodDates = (): { start: Date | null; end: Date | null } => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    
-    switch (periodFilter) {
-      case "today":
-        return {
-          start: new Date(today),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
-        }
-      case "yesterday":
-        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-        return {
-          start: yesterday,
-          end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1),
-        }
-      case "week":
-        const weekStart = new Date(today)
-        weekStart.setDate(today.getDate() - today.getDay())
-        return {
-          start: weekStart,
-          end: new Date(now),
-        }
-      case "month":
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-        return {
-          start: monthStart,
-          end: new Date(now),
-        }
-      case "all":
-      default:
-        return { start: null, end: null }
-    }
-  }
+  const [selectedBotId,  setSelectedBotId]  = useState("")
+  const [selectedFlow,   setSelectedFlow]   = useState("all")
+  const [selectedStatus, setSelectedStatus] = useState("all")
+  const [selectedStart,  setSelectedStart]  = useState("all")
+  const [searchQuery,    setSearchQuery]    = useState("")
+  const [periodFilter,   setPeriodFilter]   = useState<PeriodFilter>("all")
 
   const leadsWithPayments = useMemo(() => {
     if (!allLeads) return []
-    
-    return allLeads.map(lead => {
-      const leadPayments = payments.filter(
-        p => p.botId === lead.botId && 
-        p.telegramChatId === lead.telegramChatId &&
-        p.status === "paid"
+    return allLeads.map((lead) => {
+      const lp = payments.filter(
+        (p) => p.botId === lead.botId && p.telegramChatId === lead.telegramChatId && p.status === "paid"
       )
-      const lastPayment = leadPayments.length > 0 ? leadPayments[leadPayments.length - 1] : null
-      
-      return {
-        ...lead,
-        hasPaid: leadPayments.length > 0,
-        lastPayment: lastPayment,
-        paymentCode: lastPayment?.id || null,
-        planValue: lastPayment?.amount || null,
-      }
+      const last = lp.length > 0 ? lp[lp.length - 1] : null
+      return { ...lead, hasPaid: lp.length > 0, lastPayment: last, paymentCode: last?.id ?? null }
     })
   }, [allLeads, payments])
 
   const filteredLeads = useMemo(() => {
-    let filtered = [...leadsWithPayments]
-    const { start, end } = getPeriodDates()
-
-    // Filtro de período
-    if (start && end) {
-      filtered = filtered.filter(lead => {
-        const leadDate = new Date(lead.createdAt)
-        return leadDate >= start && leadDate <= end
-      })
-    }
-
-    // Filtro de bot
-    if (selectedBotId) {
-      filtered = filtered.filter(lead => lead.botId === selectedBotId)
-    }
-
-    // Filtro de fluxo (utmCampaign)
-    if (selectedFlow !== "all") {
-      if (selectedFlow === "none") {
-        filtered = filtered.filter(lead => !lead.utmCampaign)
-      } else {
-        filtered = filtered.filter(lead => lead.utmCampaign === selectedFlow)
+    const { start, end } = getPeriodDates(periodFilter)
+    return leadsWithPayments.filter((lead) => {
+      if (start && end) {
+        const d = new Date(lead.createdAt)
+        if (d < start || d > end) return false
       }
-    }
-
-    // Filtro de status
-    if (selectedStatus !== "all") {
-      switch (selectedStatus) {
-        case "new":
-          filtered = filtered.filter(lead => lead.isNew)
-          break
-        case "pending":
-          filtered = filtered.filter(lead => !lead.contactedAt && !lead.convertedAt && !lead.hasPaid)
-          break
-        case "paid":
-          filtered = filtered.filter(lead => lead.hasPaid || lead.convertedAt)
-          break
-        case "blocked":
-          filtered = filtered.filter(lead => lead.isBlocked)
-          break
+      if (selectedBotId && lead.botId !== selectedBotId) return false
+      if (selectedFlow !== "all") {
+        if (selectedFlow === "none" && lead.utmCampaign) return false
+        if (selectedFlow !== "none" && lead.utmCampaign !== selectedFlow) return false
       }
-    }
-
-    // Filtro de start (isNew)
-    if (selectedStart !== "all") {
-      filtered = filtered.filter(lead => 
-        selectedStart === "new" ? lead.isNew : !lead.isNew
-      )
-    }
-
-    // Busca
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(lead => {
-        const name = `${lead.firstName || ""} ${lead.lastName || ""}`.toLowerCase()
-        const username = (lead.telegramUsername || "").toLowerCase()
-        const chatId = lead.telegramChatId.toLowerCase()
-        const email = (lead.telegramUsername ? `@${lead.telegramUsername}` : "").toLowerCase()
-        return name.includes(query) || username.includes(query) || chatId.includes(query) || email.includes(query)
-      })
-    }
-
-    return filtered
+      if (selectedStatus !== "all") {
+        if (selectedStatus === "new"     && !lead.isNew) return false
+        if (selectedStatus === "pending" && (lead.contactedAt || lead.convertedAt || lead.hasPaid)) return false
+        if (selectedStatus === "paid"    && !lead.hasPaid && !lead.convertedAt) return false
+        if (selectedStatus === "blocked" && !lead.isBlocked) return false
+      }
+      if (selectedStart !== "all") {
+        if (selectedStart === "new" && !lead.isNew) return false
+        if (selectedStart === "old" &&  lead.isNew) return false
+      }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const name = `${lead.firstName ?? ""} ${lead.lastName ?? ""}`.toLowerCase()
+        const un   = (lead.telegramUsername ?? "").toLowerCase()
+        const cid  = lead.telegramChatId.toLowerCase()
+        if (!name.includes(q) && !un.includes(q) && !cid.includes(q)) return false
+      }
+      return true
+    })
   }, [leadsWithPayments, selectedBotId, selectedFlow, selectedStatus, selectedStart, searchQuery, periodFilter])
 
   const stats = useMemo(() => {
-    const { start, end } = getPeriodDates()
-    let leadsToCount = [...leadsWithPayments]
-    
-    if (start && end) {
-      leadsToCount = leadsToCount.filter(lead => {
-        const leadDate = new Date(lead.createdAt)
-        return leadDate >= start && leadDate <= end
-      })
+    const { start, end } = getPeriodDates(periodFilter)
+    const list = start && end
+      ? leadsWithPayments.filter((l) => { const d = new Date(l.createdAt); return d >= start && d <= end })
+      : leadsWithPayments
+    return {
+      novos:      list.filter((l) => l.isNew).length,
+      pendentes:  list.filter((l) => !l.contactedAt && !l.convertedAt && !l.hasPaid).length,
+      pagos:      list.filter((l) => l.hasPaid || l.convertedAt).length,
+      bloqueados: list.filter((l) => l.isBlocked).length,
+      total:      list.length,
     }
-
-    const novos = leadsToCount.filter(lead => lead.isNew).length
-    const pendentes = leadsToCount.filter(lead => !lead.contactedAt && !lead.convertedAt && !lead.hasPaid).length
-    const pagos = leadsToCount.filter(lead => lead.hasPaid || lead.convertedAt).length
-    const bloqueados = leadsToCount.filter(lead => lead.isBlocked).length
-    const total = leadsToCount.length
-
-    return { novos, pendentes, pagos, bloqueados, total }
   }, [leadsWithPayments, periodFilter])
 
-  // Obter fluxos únicos (utmCampaign)
   const uniqueFlows = useMemo(() => {
-    const flows = new Set<string>()
-    allLeads?.forEach(lead => {
-      if (lead.utmCampaign) {
-        flows.add(lead.utmCampaign)
-      }
-    })
-    return Array.from(flows).sort()
+    const s = new Set<string>()
+    allLeads?.forEach((l) => { if (l.utmCampaign) s.add(l.utmCampaign) })
+    return Array.from(s).sort()
   }, [allLeads])
+
+  const getPaymentPlan = (lead: typeof leadsWithPayments[0]) => {
+    if (!lead.lastPayment) return "-"
+    const bot = bots?.find((b) => b.id === lead.botId)
+    const btn = bot?.paymentButtons.find((b) => b.value === lead.lastPayment!.amount)
+    return btn ? btn.text : fmtCurrency(lead.lastPayment.amount)
+  }
 
   const handleMarkAsContacted = async (id: string) => {
     try {
-      await updateLead.mutateAsync({
-        id,
-        isNew: false,
-        contactedAt: new Date().toISOString(),
-      })
-      toast({
-        title: "Sucesso",
-        description: "Lead marcado como contatado",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar lead",
-        variant: "destructive",
-      })
+      await updateLead.mutateAsync({ id, isNew: false, contactedAt: new Date().toISOString() })
+      toast({ title: "Sucesso", description: "Lead marcado como contatado" })
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" })
     }
   }
 
   const handleMarkAsConverted = async (id: string) => {
     try {
-      await updateLead.mutateAsync({
-        id,
-        isNew: false,
-        convertedAt: new Date().toISOString(),
-      })
-      toast({
-        title: "Sucesso",
-        description: "Lead marcado como convertido",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar lead",
-        variant: "destructive",
-      })
+      await updateLead.mutateAsync({ id, isNew: false, convertedAt: new Date().toISOString() })
+      toast({ title: "Sucesso", description: "Lead marcado como convertido" })
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" })
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja deletar este lead?")) {
-      return
-    }
-
+    if (!confirm("Tem certeza que deseja deletar este lead?")) return
     try {
       await deleteLead.mutateAsync(id)
-      toast({
-        title: "Sucesso",
-        description: "Lead deletado com sucesso",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao deletar lead",
-        variant: "destructive",
-      })
+      toast({ title: "Sucesso", description: "Lead deletado" })
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" })
     }
   }
 
   const handleToggleResend = async (id: string, paused: boolean) => {
     try {
       await toggleResend.mutateAsync({ id, paused })
-      toast({
-        title: "Sucesso",
-        description: paused ? "Reenvio pausado" : "Reenvio retomado",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar status de reenvio",
-        variant: "destructive",
-      })
+      toast({ title: "Sucesso", description: paused ? "Reenvio pausado" : "Reenvio retomado" })
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" })
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
-  const formatDateShort = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    })
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value / 100)
-  }
-
-  const getPaymentPlan = (lead: typeof leadsWithPayments[0]) => {
-    if (!lead.lastPayment) return "-"
-    const bot = bots?.find(b => b.id === lead.botId)
-    if (!bot) return formatCurrency(lead.lastPayment.amount)
-    
-    // Tentar encontrar o botão de pagamento correspondente ao valor
-    const matchingButton = bot.paymentButtons.find(
-      btn => btn.value === lead.lastPayment!.amount
-    )
-    return matchingButton ? matchingButton.text : formatCurrency(lead.lastPayment.amount)
-  }
-
-  if (isLoading) {
-    return <Loading />
-  }
+  if (isLoading) return <Loading />
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col">
       {/* Header */}
-      <header className="w-full border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Leads</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                Gerencie seus leads e clientes
-              </p>
-            </div>
-            
-            {/* Seletor de Período */}
-            <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1 -mb-1 scrollbar-hide">
-              {[
-                { id: "today", label: "Hoje" },
-                { id: "yesterday", label: "Ontem" },
-                { id: "week", label: "Semana" },
-                { id: "month", label: "Mês" },
-                { id: "all", label: "Todo Período" },
-              ].map((period) => (
-                <Button
-                  key={period.id}
-                  variant={periodFilter === period.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setPeriodFilter(period.id as PeriodFilter)}
-                  className="whitespace-nowrap shrink-0"
-                >
-                  {period.label}
-                </Button>
-              ))}
-            </div>
+      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="px-6 h-14 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-sm font-semibold text-foreground">Leads</h1>
+            <p className="text-xs text-muted-foreground">Gerencie seus leads e clientes</p>
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide shrink-0">
+            {PERIODS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPeriodFilter(p.id)}
+                className={`h-7 px-2.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                  periodFilter === p.id
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-        {/* Cards de Estatísticas */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 mt-6">
-          <Card className="border-green-500/20 bg-green-500/5">
-            <CardContent className="pt-3 px-2 sm:pt-6 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">NOVOS</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-500">{stats.novos}</p>
+      <main className="flex-1 p-6 space-y-5">
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          {[
+            { label: "Novos",      value: stats.novos,      icon: UserPlus,   color: "text-green-500" },
+            { label: "Pendentes",  value: stats.pendentes,  icon: Clock,      color: "text-yellow-500" },
+            { label: "Pagos",      value: stats.pagos,      icon: RefreshCw,  color: "text-teal-500" },
+            { label: "Bloqueados", value: stats.bloqueados, icon: Ban,        color: "text-red-500" },
+            { label: "Total",      value: stats.total,      icon: Users,      color: "text-foreground" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label}>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+                  <Icon className={`h-4 w-4 ${color}`} />
                 </div>
-                <UserPlus className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardContent className="pt-3 px-2 sm:pt-6 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">PENDENTES</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-500">{stats.pendentes}</p>
-                </div>
-                <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-teal-500/20 bg-teal-500/5">
-            <CardContent className="pt-3 px-2 sm:pt-6 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">PAGOS</p>
-                  <p className="text-xl sm:text-2xl font-bold text-teal-500">{stats.pagos}</p>
-                </div>
-                <RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 text-teal-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardContent className="pt-3 px-2 sm:pt-6 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">BLOQUEADOS</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-500">{stats.bloqueados}</p>
-                </div>
-                <Ban className="h-6 w-6 sm:h-8 sm:w-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="pt-3 px-2 sm:pt-6 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">TOTAL LEADS</p>
-                  <p className="text-xl sm:text-2xl font-bold text-primary">{stats.total}</p>
-                </div>
-                <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
+                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Barra de Busca e Filtros */}
-        <Card className="mb-6">
-          <CardContent className="pt-4 sm:pt-6">
-            <div className="space-y-4">
-              {/* Barra de Busca */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome, telefone ou email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-input bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
-                />
-              </div>
+        {/* Filtros */}
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por nome, @username ou ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 h-9 text-sm border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            {/* Filters row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Select value={selectedBotId || "all"} onValueChange={(v) => setSelectedBotId(v === "all" ? "" : v)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Bot className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Todos bots" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos bots</SelectItem>
+                  {bots?.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
 
-              {/* Filtros Dropdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <Select 
-                  value={selectedBotId || "all"} 
-                  onValueChange={(value) => setSelectedBotId(value === "all" ? "" : value)}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Bot className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Todos os Bots" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Bots</SelectItem>
-                    {bots?.map((bot) => (
-                      <SelectItem key={bot.id} value={bot.id}>
-                        {bot.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Select value={selectedFlow} onValueChange={setSelectedFlow}>
+                <SelectTrigger className="h-8 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Network className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Todos fluxos" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos fluxos</SelectItem>
+                  <SelectItem value="none">Sem fluxo</SelectItem>
+                  {uniqueFlows.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
+              </Select>
 
-                <Select
-                  value={selectedFlow}
-                  onValueChange={setSelectedFlow}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Network className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Todos os Fluxos" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Fluxos</SelectItem>
-                    <SelectItem value="none">Sem Fluxo</SelectItem>
-                    {uniqueFlows.map((flow) => (
-                      <SelectItem key={flow} value={flow}>
-                        {flow}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Todos status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos status</SelectItem>
+                  <SelectItem value="new">Novos</SelectItem>
+                  <SelectItem value="pending">Pendentes</SelectItem>
+                  <SelectItem value="paid">Pagos</SelectItem>
+                  <SelectItem value="blocked">Bloqueados</SelectItem>
+                </SelectContent>
+              </Select>
 
-                <Select
-                  value={selectedStatus}
-                  onValueChange={setSelectedStatus}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Todos os Status" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Status</SelectItem>
-                    <SelectItem value="new">Novos</SelectItem>
-                    <SelectItem value="pending">Pendentes</SelectItem>
-                    <SelectItem value="paid">Pagos</SelectItem>
-                    <SelectItem value="blocked">Bloqueados</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={selectedStart}
-                  onValueChange={setSelectedStart}
-                >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Todos Starts" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos Starts</SelectItem>
-                    <SelectItem value="new">Novos</SelectItem>
-                    <SelectItem value="old">Antigos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={selectedStart} onValueChange={setSelectedStart}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Todos starts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos starts</SelectItem>
+                  <SelectItem value="new">Novos</SelectItem>
+                  <SelectItem value="old">Antigos</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabela de Leads */}
-        {!filteredLeads || filteredLeads.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">Nenhum cliente encontrado</h3>
-                  <p className="text-muted-foreground">Seus leads e clientes aparecerão aqui</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Desktop Table View */}
-                <Card className="hidden lg:block">
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">NOME / EMAIL</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">ID</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">CÓD. VENDAS</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">PLANO</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">BOT</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">FLUXO</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">STATUS</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-foreground">DATA</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-foreground">AÇÕES</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {filteredLeads.map((lead) => (
-                            <tr key={lead.id} className="hover:bg-muted/30">
-                              <td className="px-4 py-3">
-                                <div>
-                                  <div className="font-medium text-foreground">
-                                    {lead.firstName || lead.telegramUsername || "Usuário"}
-                                    {lead.lastName && ` ${lead.lastName}`}
-                                  </div>
-                                  {lead.telegramUsername && (
-                                    <div className="text-xs text-muted-foreground">@{lead.telegramUsername}</div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-muted-foreground font-mono">
-                                  {lead.telegramChatId}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-muted-foreground">
-                                  {lead.paymentCode ? lead.paymentCode.substring(0, 8) + "..." : "-"}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-foreground">
-                                  {getPaymentPlan(lead)}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-foreground">
-                                  {lead.bot.name}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-muted-foreground">
-                                  {lead.utmCampaign || "-"}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {lead.isNew && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                      Novo
-                                    </span>
-                                  )}
-                                  {lead.hasPaid && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-teal-500/10 text-teal-500 rounded-full">
-                                      Pago
-                                    </span>
-                                  )}
-                                  {lead.convertedAt && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                      Convertido
-                                    </span>
-                                  )}
-                                  {lead.isBlocked && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                      Bloqueado
-                                    </span>
-                                  )}
-                                  {lead.resendPaused && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-orange-500/10 text-orange-500 rounded-full">
-                                      Pausado
-                                    </span>
-                                  )}
-                                  {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
-                                    <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                      Pendente
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-sm text-muted-foreground">
-                                  {formatDateShort(lead.createdAt)}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-56">
-                                    {lead.isNew && (
-                                      <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
-                                        <Check className="h-4 w-4 mr-2" />
-                                        Marcar como Contatado
-                                      </DropdownMenuItem>
-                                    )}
-                                    {!lead.convertedAt && (
-                                      <>
-                                        <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
-                                          <Check className="h-4 w-4 mr-2" />
-                                          Marcar como Convertido
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
-                                          className={lead.resendPaused ? "text-green-500" : "text-orange-500"}
-                                        >
-                                          {lead.resendPaused ? (
-                                            <>
-                                              <Play className="h-4 w-4 mr-2" />
-                                              Retomar Reenvio
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Pause className="h-4 w-4 mr-2" />
-                                              Pausar Reenvio
-                                            </>
-                                          )}
-                                        </DropdownMenuItem>
-                                      </>
-                                    )}
-                                    {(lead.isNew || !lead.convertedAt) && <DropdownMenuSeparator />}
-                                    <DropdownMenuItem
-                                      onClick={() => handleDelete(lead.id)}
-                                      className="text-destructive focus:text-destructive"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Deletar
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+        {/* Table */}
+        {filteredLeads.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground mb-1">Nenhum lead encontrado</p>
+              <p className="text-xs text-muted-foreground">Ajuste os filtros ou aguarde novos leads</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* Desktop */}
+            <Card className="hidden lg:block">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      {["Nome / Username", "ID", "Cód. Vendas", "Plano", "Bot", "Fluxo", "Status", "Data", ""].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider first:pl-5 last:pr-5 last:text-right">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLeads.map((lead, i) => (
+                      <tr key={lead.id} className={`hover:bg-muted/30 transition-colors ${i > 0 ? "border-t border-border" : ""}`}>
+                        <td className="px-4 py-3 pl-5">
+                          <p className="text-sm font-medium text-foreground">
+                            {lead.firstName || lead.telegramUsername || "Usuário"}
+                            {lead.lastName && ` ${lead.lastName}`}
+                          </p>
+                          {lead.telegramUsername && (
+                            <p className="text-[10px] text-muted-foreground">@{lead.telegramUsername}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground font-mono">{lead.telegramChatId}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {lead.paymentCode ? lead.paymentCode.substring(0, 8) + "…" : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-foreground">{getPaymentPlan(lead)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-foreground">{lead.bot.name}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground">{lead.utmCampaign || "—"}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {lead.isNew        && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600">Novo</span>}
+                            {lead.hasPaid      && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-500/10 text-teal-600">Pago</span>}
+                            {lead.convertedAt  && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600">Convertido</span>}
+                            {lead.isBlocked    && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500">Bloqueado</span>}
+                            {lead.resendPaused && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-500">Pausado</span>}
+                            {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600">Pendente</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground">{fmtDateShort(lead.createdAt)}</span>
+                        </td>
+                        <td className="px-4 py-3 pr-5 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52 text-sm">
+                              {lead.isNew && (
+                                <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
+                                  <Check className="h-4 w-4 mr-2" /> Marcar como contatado
+                                </DropdownMenuItem>
+                              )}
+                              {!lead.convertedAt && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
+                                    <Check className="h-4 w-4 mr-2" /> Marcar como convertido
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
+                                    className={lead.resendPaused ? "text-green-600" : "text-orange-500"}
+                                  >
+                                    {lead.resendPaused
+                                      ? <><Play className="h-4 w-4 mr-2" /> Retomar reenvio</>
+                                      : <><Pause className="h-4 w-4 mr-2" /> Pausar reenvio</>}
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(lead.id)} className="text-destructive focus:text-destructive">
+                                <Trash2 className="h-4 w-4 mr-2" /> Deletar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* Mobile cards */}
+            <div className="lg:hidden space-y-3">
+              {filteredLeads.map((lead) => (
+                <Card key={lead.id}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {lead.firstName || lead.telegramUsername || "Usuário"}
+                          {lead.lastName && ` ${lead.lastName}`}
+                        </p>
+                        {lead.telegramUsername && (
+                          <p className="text-xs text-muted-foreground">@{lead.telegramUsername}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ID: {lead.telegramChatId}</p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52 text-sm">
+                          {lead.isNew && (
+                            <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
+                              <Check className="h-4 w-4 mr-2" /> Marcar como contatado
+                            </DropdownMenuItem>
+                          )}
+                          {!lead.convertedAt && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
+                                <Check className="h-4 w-4 mr-2" /> Marcar como convertido
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
+                                className={lead.resendPaused ? "text-green-600" : "text-orange-500"}
+                              >
+                                {lead.resendPaused
+                                  ? <><Play className="h-4 w-4 mr-2" /> Retomar reenvio</>
+                                  : <><Pause className="h-4 w-4 mr-2" /> Pausar reenvio</>}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleDelete(lead.id)} className="text-destructive focus:text-destructive">
+                            <Trash2 className="h-4 w-4 mr-2" /> Deletar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                      {[
+                        { l: "Plano",       v: getPaymentPlan(lead) },
+                        { l: "Bot",         v: lead.bot.name },
+                        { l: "Cód. vendas", v: lead.paymentCode ? lead.paymentCode.substring(0, 8) + "…" : "—" },
+                        { l: "Data",        v: fmtDateShort(lead.createdAt) },
+                      ].map(({ l, v }) => (
+                        <div key={l}>
+                          <p className="text-[10px] text-muted-foreground">{l}</p>
+                          <p className="text-xs text-foreground font-medium truncate">{v}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {lead.utmCampaign && (
+                      <p className="text-xs text-muted-foreground">Fluxo: <span className="text-foreground">{lead.utmCampaign}</span></p>
+                    )}
+
+                    <div className="flex flex-wrap gap-1">
+                      {lead.isNew        && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600">Novo</span>}
+                      {lead.hasPaid      && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-500/10 text-teal-600">Pago</span>}
+                      {lead.convertedAt  && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600">Convertido</span>}
+                      {lead.isBlocked    && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500">Bloqueado</span>}
+                      {lead.resendPaused && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-500">Pausado</span>}
+                      {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600">Pendente</span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Mobile Card View */}
-                <div className="lg:hidden space-y-3">
-                  {filteredLeads.map((lead) => (
-                    <Card key={lead.id}>
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-foreground mb-1">
-                                {lead.firstName || lead.telegramUsername || "Usuário"}
-                                {lead.lastName && ` ${lead.lastName}`}
-                              </div>
-                              {lead.telegramUsername && (
-                                <div className="text-xs text-muted-foreground mb-2">@{lead.telegramUsername}</div>
-                              )}
-                              <div className="text-xs text-muted-foreground font-mono break-all">
-                                ID: {lead.telegramChatId}
-                              </div>
-                            </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                {lead.isNew && (
-                                  <DropdownMenuItem onClick={() => handleMarkAsContacted(lead.id)}>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Marcar como Contatado
-                                  </DropdownMenuItem>
-                                )}
-                                {!lead.convertedAt && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => handleMarkAsConverted(lead.id)}>
-                                      <Check className="h-4 w-4 mr-2" />
-                                      Marcar como Convertido
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleToggleResend(lead.id, !lead.resendPaused)}
-                                      className={lead.resendPaused ? "text-green-500" : "text-orange-500"}
-                                    >
-                                      {lead.resendPaused ? (
-                                        <>
-                                          <Play className="h-4 w-4 mr-2" />
-                                          Retomar Reenvio
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Pause className="h-4 w-4 mr-2" />
-                                          Pausar Reenvio
-                                        </>
-                                      )}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {(lead.isNew || !lead.convertedAt) && <DropdownMenuSeparator />}
-                                <DropdownMenuItem
-                                  onClick={() => handleDelete(lead.id)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Deletar
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Cód. Vendas:</span>
-                              <div className="text-foreground font-mono text-xs">
-                                {lead.paymentCode ? lead.paymentCode.substring(0, 8) + "..." : "-"}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Plano:</span>
-                              <div className="text-foreground">{getPaymentPlan(lead)}</div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Bot:</span>
-                              <div className="text-foreground">{lead.bot.name}</div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Data:</span>
-                              <div className="text-foreground">{formatDateShort(lead.createdAt)}</div>
-                            </div>
-                          </div>
-
-                          {lead.utmCampaign && (
-                            <div>
-                              <span className="text-muted-foreground text-sm">Fluxo: </span>
-                              <span className="text-foreground text-sm">{lead.utmCampaign}</span>
-                            </div>
-                          )}
-
-                          <div className="flex flex-wrap gap-1 pt-2">
-                            {lead.isNew && (
-                              <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                Novo
-                              </span>
-                            )}
-                            {lead.hasPaid && (
-                              <span className="px-2 py-1 text-xs font-medium bg-teal-500/10 text-teal-500 rounded-full">
-                                Pago
-                              </span>
-                            )}
-                            {lead.convertedAt && (
-                              <span className="px-2 py-1 text-xs font-medium bg-green-500/10 text-green-500 rounded-full">
-                                Convertido
-                              </span>
-                            )}
-                            {lead.isBlocked && (
-                              <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                Bloqueado
-                              </span>
-                            )}
-                            {lead.resendPaused && (
-                              <span className="px-2 py-1 text-xs font-medium bg-orange-500/10 text-orange-500 rounded-full">
-                                Pausado
-                              </span>
-                            )}
-                            {!lead.contactedAt && !lead.convertedAt && !lead.hasPaid && (
-                              <span className="px-2 py-1 text-xs font-medium bg-red-500/10 text-red-500 rounded-full">
-                                Pendente
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </>
-            )}
+              ))}
+            </div>
+          </>
+        )}
       </main>
     </div>
   )

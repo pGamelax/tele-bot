@@ -596,6 +596,8 @@ export class BotManager {
 
         await ctx.answerCallbackQuery("Gerando PIX...");
 
+        await ctx.reply("Certo, me dá só um minuto enquanto preparo seu pagamento...");
+
         const payment = await prisma.payment.create({
           data: {
             botId,
@@ -605,7 +607,7 @@ export class BotManager {
           },
         });
 
-        const webhookUrl = process.env.WEBHOOK_URL 
+        const webhookUrl = process.env.WEBHOOK_URL
           ? `${process.env.WEBHOOK_URL}/api/webhooks/syncpay`
           : process.env.BETTER_AUTH_URL
           ? `${process.env.BETTER_AUTH_URL}/api/webhooks/syncpay`
@@ -634,19 +636,20 @@ export class BotManager {
           },
         });
 
-        const message = `💰 PIX Gerado!\n\n` +
-          `Valor: R$ ${(amount / 100).toFixed(2)}\n\n` +
-          `Código PIX:\n\`${pixData.pixCode}\`\n\n` +
-          `Escaneie o QR Code abaixo ou copie o código.`;
+        await ctx.reply(
+          `✅ Prontinho\nPara pagar, clique na chave Pix abaixo ⬇️ para copiar e pague no app do seu banco\n\n‼️ Utilize a opção PIX Copia e Cola no seu aplicativo bancário (ou pagamento via QR CODE em alguns bancos)`
+        );
 
-        if (pixData.qrCode) {
-          await ctx.replyWithPhoto(pixData.qrCode, {
-            caption: message,
-            parse_mode: "Markdown",
-          });
-        } else {
-          await ctx.reply(message, { parse_mode: "Markdown" });
-        }
+        await ctx.reply(`\`${pixData.pixCode}\``, { parse_mode: "Markdown" });
+
+        await ctx.reply(
+          `⚠️ Importante! Após o pagamento, volte nesta tela para receber o link de acesso.\n\n🕐 Aguarde alguns instantes para que nosso sistema receba a confirmação do seu pagamento pelo banco.\n\nCaso não receba o link automaticamente em cerca de 3 minutos, clique no botão "Confirmar Pagamento" abaixo ⬇️.\n\nSe precisar, contate @ para atendimento e suporte`,
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: "🔔 Verificar Pagamento", callback_data: `verify_payment_${payment.id}` }]],
+            },
+          }
+        );
 
         // Parar reenvio ao gerar PIX - retomará após 20 min se não pagar
         this.stopResendSchedule(botId, chatId);
@@ -655,6 +658,58 @@ export class BotManager {
       } catch (error) {
         console.error(`Erro ao processar pagamento:`, error);
         await ctx.answerCallbackQuery("Erro ao gerar PIX");
+      }
+    });
+
+    bot.callbackQuery(/^verify_payment_(.+)$/, async (ctx: Context) => {
+      try {
+        if (!ctx.callbackQuery) return;
+        const match = ctx.callbackQuery.data?.match(/^verify_payment_(.+)$/);
+        if (!match) return;
+
+        const paymentId = match[1];
+
+        const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+
+        if (!payment) {
+          await ctx.answerCallbackQuery("Pagamento não encontrado.");
+          return;
+        }
+
+        if (payment.status === "paid") {
+          await ctx.answerCallbackQuery("✅ Pagamento já confirmado!");
+          return;
+        }
+
+        const status = await syncpay.checkPayment(payment.syncpayId!);
+
+        if (status === "paid") {
+          await prisma.payment.update({
+            where: { id: paymentId },
+            data: { status: "paid", paidAt: new Date() },
+          });
+          await ctx.answerCallbackQuery("✅ Pagamento confirmado!");
+          await ctx.reply("✅ Pagamento confirmado! Obrigado pela compra.");
+
+          const chatId = ctx.chat?.id.toString();
+          if (chatId) {
+            this.stopResendSchedule(botId, chatId);
+            try {
+              const lead = await prisma.lead.findFirst({ where: { botId, telegramChatId: chatId } });
+              if (lead) {
+                await prisma.lead.update({
+                  where: { id: lead.id },
+                  data: { isNew: false, convertedAt: new Date() },
+                });
+              }
+            } catch {}
+          }
+        } else {
+          await ctx.answerCallbackQuery("⏳ Pagamento ainda não confirmado. Aguarde alguns instantes.");
+        }
+      } catch (error) {
+        console.error(`Erro ao verificar pagamento manual:`, error);
+        await ctx.answerCallbackQuery("Erro ao verificar pagamento.");
       }
     });
 
