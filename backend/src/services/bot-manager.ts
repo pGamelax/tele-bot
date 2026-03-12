@@ -4,6 +4,7 @@ import { SyncPayService } from "./syncpay";
 import { TrackingStorage } from "./tracking-storage";
 import { scheduleResends, removeResendJobs } from "./resend-queue";
 import { isCloudinaryUrl } from "./cloudinary";
+import QRCode from "qrcode";
 
 const prisma = new PrismaClient();
 
@@ -639,6 +640,20 @@ export class BotManager {
         await ctx.reply(
           `✅ Prontinho\nPara pagar, clique na chave Pix abaixo ⬇️ para copiar e pague no app do seu banco\n\n‼️ Utilize a opção PIX Copia e Cola no seu aplicativo bancário (ou pagamento via QR CODE em alguns bancos)`
         );
+
+        // Send QR Code image for scanning
+        try {
+          const qrBuffer = await QRCode.toBuffer(pixData.pixCode, {
+            errorCorrectionLevel: "M",
+            width: 512,
+            margin: 2,
+          });
+          await ctx.replyWithPhoto(new InputFile(qrBuffer, "qrcode.png"), {
+            caption: "📷 Escaneie o QR Code acima com o app do seu banco",
+          });
+        } catch (qrErr) {
+          console.error("Erro ao gerar QR Code:", qrErr);
+        }
 
         await ctx.reply(`\`${pixData.pixCode}\``, { parse_mode: "Markdown" });
 

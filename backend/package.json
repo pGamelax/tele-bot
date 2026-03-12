@@ -24,10 +24,12 @@
     "elysia": "^1.1.0",
     "grammy": "^1.21.0",
     "ioredis": "^5.10.0",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "@types/qrcode": "^1.5.6"
   }
 }

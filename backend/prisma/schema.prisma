@@ -190,8 +190,9 @@ model Payment {
   qrCode          String?  // QR Code
   expiresAt       DateTime?
   paidAt          DateTime?
-  pixRecoverySentAt DateTime? // Quando foi enviado o lembrete de recuperação
-  resendResumedAt   DateTime? // Quando o reenvio foi retomado (após 20 min sem pagar)
+  pixRecoverySentAt  DateTime? // Quando foi enviado o lembrete de recuperação (1º)
+  pixRecovery2SentAt DateTime? // Quando foi enviado o 2º lembrete de recuperação (~30 min)
+  resendResumedAt    DateTime? // Quando o reenvio foi retomado (após 20 min sem pagar)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

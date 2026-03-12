@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(wc -l /c/Users/pedro/Documents/tele-bot/frontend/app/\\\\\\(private\\\\\\)/bots/[id]/page.tsx)",
-      "Bash(find /c/Users/pedro/Documents/tele-bot/frontend/app -type f -name *.tsx)"
+      "Bash(find /c/Users/pedro/Documents/tele-bot/frontend/app -type f -name *.tsx)",
+      "Bash(bun add:*)",
+      "Bash(bunx prisma:*)"
     ]
   }
 }
