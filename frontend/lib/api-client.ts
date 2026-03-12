@@ -61,6 +61,11 @@ export interface Payment {
     id: string
     name: string
   }
+  lead?: {
+    firstName?: string | null
+    lastName?: string | null
+    telegramUsername?: string | null
+  } | null
 }
 
 export interface Bot {

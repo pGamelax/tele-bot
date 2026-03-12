@@ -31,6 +31,12 @@ const PERIODS = [
 const fmtDateShort = (s: string) =>
   new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
 
+const fmtDateTime = (s: string) => {
+  const d = new Date(s)
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) +
+    " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+}
+
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100)
 
@@ -69,7 +75,12 @@ export default function LeadsPage() {
         (p) => p.botId === lead.botId && p.telegramChatId === lead.telegramChatId && p.status === "paid"
       )
       const last = lp.length > 0 ? lp[lp.length - 1] : null
-      return { ...lead, hasPaid: lp.length > 0, lastPayment: last, paymentCode: last?.id ?? null }
+      // Primeiro PIX gerado (qualquer status) — payments vêm em ordem desc, então o último = mais antigo
+      const allLeadPix = payments.filter(
+        (p) => p.botId === lead.botId && p.telegramChatId === lead.telegramChatId
+      )
+      const firstPix = allLeadPix.length > 0 ? allLeadPix[allLeadPix.length - 1] : null
+      return { ...lead, hasPaid: lp.length > 0, lastPayment: last, paymentCode: last?.id ?? null, firstPix }
     })
   }, [allLeads, payments])
 
@@ -308,7 +319,7 @@ export default function LeadsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
-                      {["Nome / Username", "ID", "Cód. Vendas", "Plano", "Bot", "Fluxo", "Status", "Data", ""].map((h) => (
+                      {["Nome / Username", "ID", "Cód. Vendas", "Plano", "Bot", "Fluxo", "Status", "Start", "PIX Gerado", ""].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider first:pl-5 last:pr-5 last:text-right">
                           {h}
                         </th>
@@ -357,7 +368,12 @@ export default function LeadsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-muted-foreground">{fmtDateShort(lead.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">{fmtDateTime(lead.createdAt)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {lead.firstPix ? fmtDateTime(lead.firstPix.createdAt) : "—"}
+                          </span>
                         </td>
                         <td className="px-4 py-3 pr-5 text-right">
                           <DropdownMenu>
@@ -457,7 +473,8 @@ export default function LeadsPage() {
                         { l: "Plano",       v: getPaymentPlan(lead) },
                         { l: "Bot",         v: lead.bot.name },
                         { l: "Cód. vendas", v: lead.paymentCode ? lead.paymentCode.substring(0, 8) + "…" : "—" },
-                        { l: "Data",        v: fmtDateShort(lead.createdAt) },
+                        { l: "Start",       v: fmtDateTime(lead.createdAt) },
+                        { l: "PIX Gerado",  v: lead.firstPix ? fmtDateTime(lead.firstPix.createdAt) : "—" },
                       ].map(({ l, v }) => (
                         <div key={l}>
                           <p className="text-[10px] text-muted-foreground">{l}</p>

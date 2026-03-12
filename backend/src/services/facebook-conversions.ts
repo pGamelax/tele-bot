@@ -65,9 +65,10 @@ export class FacebookConversionsService {
       const userData: any = {};
       
       // Parâmetros que NÃO precisam de hash (conforme documentação Facebook)
-      // fbc (Facebook Click ID)
+      // fbc (Facebook Click ID) - deve estar no formato: fb.1.{timestamp_ms}.{fbclid}
       if (data.userData.fbclid) {
-        userData.fbc = data.userData.fbclid;
+        const creationTime = data.eventTime ? data.eventTime * 1000 : Date.now();
+        userData.fbc = `fb.1.${creationTime}.${data.userData.fbclid}`;
       }
       
       // fbp (Facebook Browser ID)

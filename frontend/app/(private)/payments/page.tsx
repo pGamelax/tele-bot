@@ -35,6 +35,12 @@ const fmt = (v: number) =>
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
 
+const fmtDateTime = (s: string) => {
+  const d = new Date(s)
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) +
+    " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+}
+
 function getPeriodDates(period: PeriodFilter) {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -244,8 +250,16 @@ export default function PaymentsPage() {
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-foreground truncate">{botName}</p>
+                              {payment.lead && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {payment.lead.firstName || payment.lead.telegramUsername
+                                    ? [payment.lead.firstName, payment.lead.lastName].filter(Boolean).join(" ") ||
+                                      `@${payment.lead.telegramUsername}`
+                                    : payment.telegramChatId}
+                                </p>
+                              )}
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs text-muted-foreground">{fmtDate(payment.createdAt)}</span>
+                                <span className="text-xs text-muted-foreground">{fmtDateTime(payment.createdAt)}</span>
                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${badge.cls}`}>
                                   {badge.label}
                                 </span>

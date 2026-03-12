@@ -91,7 +91,25 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
         take: limit,
       });
 
-      return { payments };
+      // Buscar leads para obter dados do usuário que gerou cada PIX
+      const uniqueKeys = [...new Set(payments.map((p) => `${p.botId}:${p.telegramChatId}`))];
+      const leadConditions = uniqueKeys.map((key) => {
+        const [bId, chatId] = key.split(":");
+        return { botId: bId, telegramChatId: chatId };
+      });
+      const leads = leadConditions.length > 0
+        ? await prisma.lead.findMany({
+            where: { OR: leadConditions },
+            select: { botId: true, telegramChatId: true, firstName: true, lastName: true, telegramUsername: true },
+          })
+        : [];
+      const leadMap = new Map(leads.map((l) => [`${l.botId}:${l.telegramChatId}`, l]));
+      const paymentsWithLeads = payments.map((p) => ({
+        ...p,
+        lead: leadMap.get(`${p.botId}:${p.telegramChatId}`) ?? null,
+      }));
+
+      return { payments: paymentsWithLeads };
     } catch (error) {
       console.error("Erro ao buscar pagamentos:", error);
       set.status = 500;
